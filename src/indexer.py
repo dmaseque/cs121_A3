@@ -7,7 +7,7 @@ from bs4 import BeautifulSoup
 from nltk.stem import PorterStemmer
 
 # global variable of inverted index - key: token -> list of postings
-inverted_index = dict()
+inverted_index = {}
 
 # # download nltk data for tokenization
 # nltk.download('punkt')
@@ -45,15 +45,16 @@ def computeWordFrequencies(tokens):
     
     return word_frequencies
 
+# add posting to inverted_index
 # posting contains document name/id token was found in and its tf-idf score
 def posting(document_id, document_name, term_freq):
     global inverted_index
     # iterate through each token
-    for token, frequency in term_freq:
+    for token, frequency in term_freq.items():
         # if the token is not in inverted_index dict, add token as key and map to empty list
         # list will later be populated with webpages including token
         if token not in inverted_index:
-            inverted_index[token] = {}
+            inverted_index[token] = []
         
         # posting : document name/id token was found in and its tf-idf score
         posting = {
@@ -61,6 +62,8 @@ def posting(document_id, document_name, term_freq):
             "document_name": document_name,
             "tf-idf score": frequency
         }
+
+        # print(posting)
 
         # add posting to inverted_index under the token it was found in
         inverted_index[token].append(posting)
@@ -74,18 +77,21 @@ def create_inverted_index(dev):
     corpus = os.listdir(dev)
 
     for domain in corpus:
+        print(f'Indexing domain:{domain}')
         # json_files for each domain are in folder dev/{domain}
         json_files = '{}/{}'.format(dev, domain)
 
         # each JSON file coresponds to one web page
         for webpage in os.listdir(json_files):
 
+            print(f'Processing webpage:{webpage}')
             # webpage_path is dev/{domain}/{webpage}
             webpage_path = os.path.join(json_files, webpage)
-
+        
             # open the json file and load the contents
             try:
                 with open(webpage_path, 'r', encoding = 'utf-8') as file:
+                    print('Loading content of the json file')
                     content = json.load(file)
                     file.close()
             except FileNotFoundError:
@@ -95,6 +101,7 @@ def create_inverted_index(dev):
 
             # posting - document_id is name of the json file
             document_id = webpage
+            document_id = document_id.removesuffix(".json")
             # posting - document_name is the url in the json file
             document_name = content['url']
 
@@ -106,9 +113,13 @@ def create_inverted_index(dev):
             tokens = tokenize(text)
             term_freq = computeWordFrequencies(tokens)
 
-            # create posting for webpage
+            # create posting for webpage and add to inverted_index
             posting(document_id, document_name, term_freq)
 
 if __name__ == '__main__':
 
-    create_inverted_index('../DEV')
+    # the DEV folder - extract developer.zip inside the src folder
+    create_inverted_index('DEV')
+    # test folder only creates inverted index for tippersweb_ics_uci_edu
+    # create_inverted_index('TEST')
+    print(inverted_index)
