@@ -1,7 +1,7 @@
 import os
 import sys
 import json 
-import regex as re
+import re
 import nltk
 from bs4 import BeautifulSoup
 from nltk.stem import PorterStemmer
@@ -116,10 +116,17 @@ def create_inverted_index(dev):
             # create posting for webpage and add to inverted_index
             posting(document_id, document_name, term_freq)
 
+# save index to json file
+def save_inverted_index(file_path="inverted_index.json"):
+    with open(file_path, "w", encoding="utf-8") as file:
+        json.dump(inverted_index, file, indent=4)
+
 if __name__ == '__main__':
 
     # the DEV folder - extract developer.zip inside the src folder
-    create_inverted_index('DEV')
-    # test folder only creates inverted index for tippersweb_ics_uci_edu
-    # create_inverted_index('TEST')
-    print(inverted_index)
+    #create_inverted_index('src/DEV')
+
+    # test folder only creates inverted index for aiclub_ics_uci_edu
+    create_inverted_index('src/TEST/')
+
+    save_inverted_index()
