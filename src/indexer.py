@@ -105,8 +105,19 @@ def create_inverted_index(dev):
 
             # posting - term frequency score
 
-            # parse through content of json file and tokenize text
-            soup = BeautifulSoup(content['content'], 'lxml') #
+            try: 
+                # parse through content of json file and tokenize text
+                soup = BeautifulSoup(content['content'], 'lxml')
+
+                # deal with broken or missing HTML
+                # skip document if there's no valid parsed HTML or no meaningful text content
+                if not soup or not soup.get_text(strip=True):
+                    print(f"Skipping {webpage} due to missing or broken HTML")
+                    continue
+            except Exception as e:
+                print(f"Error parsing HTML for {webpage}: {e}")
+                continue
+
             tokens = []
 
             # add weights to "important text" (actual weights can be adjusted later)
@@ -144,6 +155,7 @@ if __name__ == '__main__':
     # create_inverted_index('src/DEV')
 
     # test folder only creates inverted index for aiclub_ics_uci_edu
-    create_inverted_index('/home/cathyw8/cs121_A3/src/TEST')
+    # create_inverted_index('/home/cathyw8/cs121_A3/src/TEST')
+    create_inverted_index('src/TEST/')
 
     save_inverted_index()
