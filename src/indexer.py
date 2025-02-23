@@ -6,8 +6,13 @@ import nltk
 from bs4 import BeautifulSoup
 from nltk.stem import PorterStemmer
 
-# global variable of inverted index - key: token -> list of postings
-inverted_index = {}
+inverted_index = {} # global variable of inverted index - key: token -> list of postings
+index_counter = 1 # current number of index being built
+
+"""
+MAX_DOCS MUST CHANGE BASED ON DEV (~10000) OR TEST (2)
+"""
+MAX_DOCS = 2 # number of documents until it is time to dump
 
 # # download nltk data for tokenization
 # nltk.download('punkt')
@@ -70,11 +75,12 @@ def posting(document_id, document_name, term_freq):
             
 
 # dev is the developer folder
-def create_inverted_index(dev):
+def create_inverted_indexes(dev):
 
     # in dev, there is one folder per domain
     # corpus is the list of domains in developer folder
     corpus = os.listdir(dev)
+    doc_count = 0
 
     for domain in corpus:
         print(f'Indexing domain:{domain}')
@@ -84,18 +90,18 @@ def create_inverted_index(dev):
         # each JSON file coresponds to one web page
         for webpage in os.listdir(json_files):
 
-            print(f'Processing webpage:{webpage}')
+            #print(f'Processing webpage:{webpage}')
             # webpage_path is dev/{domain}/{webpage}
             webpage_path = os.path.join(json_files, webpage)
         
             # open the json file and load the contents
             try:
                 with open(webpage_path, 'r', encoding = 'utf-8') as file:
-                    print('Loading content of the json file')
+                    #print('Loading content of the json file')
                     content = json.load(file)
                     file.close()
             except FileNotFoundError:
-                print('Json File not found.')
+                print(f'Json File not found for {webpage}.')
             except IOError:
                 print('Json File input/output error.')
 
@@ -116,17 +122,41 @@ def create_inverted_index(dev):
             # create posting for webpage and add to inverted_index
             posting(document_id, document_name, term_freq)
 
+            # DUMP EVERY MAX_DOCS DOCS
+            doc_count += 1
+            if doc_count % MAX_DOCS == 0:
+                dump_inverted_index()
+        
+    # final dump for remaining memory
+    if inverted_index:
+        dump_inverted_index()
+
 # save index to json file
-def save_inverted_index(file_path="inverted_index.json"):
-    with open(file_path, "w", encoding="utf-8") as file:
+def dump_inverted_index():
+    global inverted_index, index_counter
+
+    # make a folder called "indexes" if it doesn't exist
+    index_folder = "partial_indexes"
+    os.makedirs(index_folder, exist_ok=True)
+
+    # name file based on which index it is current on
+    output_file = f"partial_indexes/partial_index_{index_counter}.json"
+    with open(output_file, "w", encoding="utf-8") as file:
         json.dump(inverted_index, file, indent=4)
+
+    # clear memory and increment counter
+    inverted_index = {}
+    index_counter += 1
+
+def merge_partial_indexes():
+    output_file = "final_index.json" # keep this name so it is compatible with generate_report
+    # needf to implement
 
 if __name__ == '__main__':
 
     # the DEV folder - extract developer.zip inside the src folder
     #create_inverted_index('src/DEV')
 
-    # test folder only creates inverted index for aiclub_ics_uci_edu
-    create_inverted_index('src/TEST/')
-
-    save_inverted_index()
+    # test folder only creates inverted index for files starting with the letter a
+    create_inverted_indexes('src/TEST/')
+    merge_partial_indexes()

@@ -173,3 +173,5 @@ cython_debug/
 src/DEV
 inverted_index.json
 report.txt
+partial_indexes/
+bin/
