@@ -183,10 +183,8 @@ def merge_partial_indexes():
 if __name__ == '__main__':
 
     # # the DEV folder - extract developer.zip inside the src folder
-    # create_inverted_index('src/DEV')
+    create_inverted_index('src/DEV')
 
-    catheiwu/important_text
     # test folder only creates inverted index for files starting with the letter a
-    create_inverted_indexes('src/TEST/')
+    # create_inverted_indexes('src/TEST/')
     merge_partial_indexes()
-    main
