@@ -15,11 +15,11 @@ MAX_DOCS MUST CHANGE BASED ON DEV (~10000) OR TEST (2)
 """
 MAX_DOCS = 10000 # number of documents until it is time to dump
 
-# # download nltk data for tokenization
-# nltk.download('punkt')
+# download nltk data for tokenization
+nltk.download('punkt')
 
 # modified tokenize from Part A
-def tokenize(text):
+def tokenize(text, weight=1):
 
     # use regular expression to tokenize alphanumeric words in text
     tokens = re.findall(r'[a-zA-Z0-9]+', text.lower())
@@ -31,24 +31,22 @@ def tokenize(text):
         # only add tokens that are more than 2 characters
         # do not include single letter tokens from contractions
         if len(token) > 2:
-            tokens_stemmed.append(stemmer.stem(token))
+            tokens_stemmed.append((stemmer.stem(token), weight))
     
     return tokens_stemmed
 
 # computeWordFrequencies from Part A
+# Important text: adds default weight 1 and any extra weight for appearing in title (+2), headings(+1), or as bold/strong (+1)
 def computeWordFrequencies(tokens):
 
     word_frequencies = {}
 
-    #iterate through every token in tokens list
-    for token in tokens: 
-        #if token exists, increment frequencies
-        if token in word_frequencies:
-            word_frequencies[token] += 1
-        #if token does not exist, set frequency equal to 1
-        else:
-            word_frequencies[token] = 1
-    
+    #iterate through every token/weight in tokens list
+    for token, weight in tokens:
+        # word_frequencies.get(token, 0) checks if token exists, using 0 as default frequency if it doesn't exist
+        # increment frequency if token exists, otherwise set it to its weight
+        word_frequencies[token] = word_frequencies.get(token, 0) + weight
+        
     return word_frequencies
 
 # add posting to inverted_index
@@ -114,10 +112,40 @@ def create_inverted_indexes(dev):
 
             # posting - term frequency score
 
-            # parse through content of json file and tokenize text
-            soup = BeautifulSoup(content['content'], 'lxml')
-            text = soup.get_text()
-            tokens = tokenize(text)
+            try: 
+                # parse through content of json file and tokenize text
+                soup = BeautifulSoup(content['content'], 'lxml')
+
+                # deal with broken or missing HTML
+                # skip document if there's no valid parsed HTML or no meaningful text content
+                if not soup or not soup.get_text(strip=True):
+                    print(f"Skipping {webpage} due to missing or broken HTML")
+                    continue
+            except Exception as e:
+                print(f"Error parsing HTML for {webpage}: {e}")
+                continue
+
+            tokens = []
+
+            # add weights to "important text" (actual weights can be adjusted later)
+
+            # text in titles - additional weight of 2
+            if soup.title: # soup.title directly accesses HTML document's <title> tag
+                tokens += tokenize(soup.title.get_text(), weight=2)
+
+            # text in headings - additional weight of 1
+            for tag in ['h1', 'h2', 'h3']:
+                for element in soup.find_all(tag):
+                    tokens += tokenize(element.get_text(), weight=1)
+
+            # text in bold/strong - additional weight of 1
+            for tag in ['b', 'strong']: 
+                for element in soup.find_all(tag):
+                    tokens += tokenize(element.get_text(), weight=1)
+
+            # regular text - default weight of 1
+            tokens += tokenize(soup.get_text(), weight=1)
+
             term_freq = computeWordFrequencies(tokens)
 
             # create posting for webpage and add to inverted_index
@@ -207,11 +235,6 @@ def merge_partial_indexes():
 
 if __name__ == '__main__':
 
-    # the DEV folder - extract developer.zip inside the src folder
-    #create_inverted_index('src/DEV')
-
-    # test folder only creates inverted index for files starting with the letter a
-    create_inverted_indexes("src/TEST")
-
-    # create_inverted_indexes("src/developer/DEV")
+    # # the DEV folder - extract developer.zip inside the src folder
+    create_inverted_index('src/DEV')
     merge_partial_indexes()
