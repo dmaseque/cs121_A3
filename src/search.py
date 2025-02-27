@@ -50,7 +50,31 @@ def search(query):
             result = token_docIDs
         # if result contains docIDs, only add to result if docIDs in token_docIDs AND result
         else:
-            result &= token_docIDs
+            # modified from partB of assignment 1
+
+            #sort the tokens by alphabetical order
+            result.sort()
+            token_docIDs.sort()
+
+            #Algorithm 3: Sorted Lists Approach from Discussion Week 2 slides
+            R = []
+            result_index = 0
+            token_docIDs_index = 0
+            #iterate through both text files, stop when reached end of one of the files
+            while result_index < len(result) and token_docIDs_index < len(token_docIDs):
+                #if file_1 value < file2_value, increment file1_index
+                if result[result_index] < token_docIDs[token_docIDs_index]:
+                    result_index += 1
+                #if file_2 value < file1_value, increment file2_index
+                elif token_docIDs[token_docIDs_index] < result[result_index]:
+                    token_docIDs += 1
+                #if file1_value = file2_value, append to R and increment both indexes
+                else:
+                    R.append(result[result_index])
+                    result_index += 1
+                    token_docIDs_index += 1
+            
+            result = R
 
     # if result is empty, then no documents found in inverted index
     if result == None:
