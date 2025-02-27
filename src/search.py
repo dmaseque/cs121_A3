@@ -27,6 +27,7 @@ def search(query):
     # for token in query of stemmed tokens, check for token in inverted index
     for token in query_stemmed_tokens:
         # if token in inverted index, retrieve all the postings for that token
+        postings = []
         if token in inverted_index:
             postings = inverted_index[token]     
 
