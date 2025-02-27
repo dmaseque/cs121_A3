@@ -15,8 +15,8 @@ MAX_DOCS MUST CHANGE BASED ON DEV (~10000) OR TEST (2)
 """
 MAX_DOCS = 10000 # number of documents until it is time to dump
 
-# download nltk data for tokenization
-nltk.download('punkt')
+# # download nltk data for tokenization
+# nltk.download('punkt')
 
 # modified tokenize from Part A
 def tokenize(text, weight=1):
@@ -236,5 +236,5 @@ def merge_partial_indexes():
 if __name__ == '__main__':
 
     # # the DEV folder - extract developer.zip inside the src folder
-    create_inverted_index('src/DEV')
+    create_inverted_indexes('src/TEST')
     merge_partial_indexes()

@@ -7,6 +7,7 @@ from indexer import inverted_index, tokenize
 # implement index offset from book keeping file
 # for now, it just loads entire final_index.json
 #######################################################
+
 def load_inverted_index(file_path):
     try:
         with open(file_path, 'r', encoding='utf-8') as file:
@@ -37,10 +38,12 @@ def search(query):
             postings = inverted_index[token]
             # for each posting, add the document ID
             for posting in postings:
+
 #############################
 # TODO: need to map docID to document_name = want to output document name, not docID
 # right now, add document_name for testing, should be "document_id"
 #############################  
+
                 token_docIDs.add(posting["document_name"])      
 
         # AND operation to get intersection of sets
@@ -81,17 +84,25 @@ def search(query):
         return []
     
     # return result of list of document names (urls)
+
+###############################################
+# TODO: sort the result by tf-idf instead of alphabetical
+###############################################
+
     return result
 
 if __name__ == '__main__':
     
-    # python search.py {query}
+    # python3 search.py {write search query here}
+    # for src/TEST, command line argument = python3 search.py 6pm 
     if len(sys.argv) < 2:
         print("Invalid query.")
         sys.exit(1)
 
     # form the query string from command line arguments
     query = " ".join(sys.argv[1:])
+
+    print(f"Search query: '{query}'\n")
 
     inverted_index = load_inverted_index("final_index.json")
 
