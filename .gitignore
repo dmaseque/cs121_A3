@@ -175,3 +175,7 @@ inverted_index.json
 report.txt
 partial_indexes/
 bin/
+
+bookkeeping.json
+doc_id_mapping.json
+final_index.json
