@@ -10,7 +10,7 @@ import heapq
 inverted_index = {} # global variable of inverted index - key: token -> list of postings
 index_counter = 1 # current number of index being built
 
-doc_id_map = {}  # mappings of document_id -> document_name (URL)
+doc_id_map = {}  # document_name (URL) -> mappings of document_id
 doc_id_counter = 0  # counter to assign IDs
 
 """

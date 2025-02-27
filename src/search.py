@@ -1,6 +1,6 @@
 import sys
 import json
-from indexer import inverted_index, tokenize
+from indexer import inverted_index, tokenize, doc_id_map
 
 # loads entire final_index.json
 def load_inverted_index(file_path):
@@ -26,65 +26,56 @@ def search(query):
 
     # for token in query of stemmed tokens, check for token in inverted index
     for token in query_stemmed_tokens:
-        # take only unique docIDs for each token
-        token_docIDs = set()
         # if token in inverted index, retrieve all the postings for that token
         if token in inverted_index:
-            postings = inverted_index[token]
-            # for each posting, add the document ID
-            for posting in postings:
-
-#############################
-# TODO: need to map docID to document_name = want to output document name, not docID
-# right now, add document_name for testing, should be "document_id"
-#############################  
-
-                token_docIDs.add(posting["document_name"])      
+            postings = inverted_index[token]     
 
         # AND operation to get intersection of sets
 
         # if there is nothing in result, add set of docIDs for token in query
         if result is None:
-            result = token_docIDs
-        # if result contains docIDs, only add to result if docIDs in token_docIDs AND result
+            result = postings
+        # if result contains docIDs, only add to result if docIDs in postings AND result
         else:
             # modified from partB of assignment 1
 
-            #sort the tokens by alphabetical order
-            result.sort()
-            token_docIDs.sort()
+            #sort the result postings and postings by docID
+            result.sort(key=lambda x: x.get("document_id"))
+            postings.sort(key=lambda x: x.get("document_id"))
 
             #Algorithm 3: Sorted Lists Approach from Discussion Week 2 slides
             R = []
             result_index = 0
-            token_docIDs_index = 0
+            postings_index = 0
             #iterate through both text files, stop when reached end of one of the files
-            while result_index < len(result) and token_docIDs_index < len(token_docIDs):
+            while result_index < len(result) and postings_index < len(postings):
                 #if file_1 value < file2_value, increment file1_index
-                if result[result_index] < token_docIDs[token_docIDs_index]:
+                if result[result_index]["document_id"] < postings[postings_index]["document_id"]:
                     result_index += 1
                 #if file_2 value < file1_value, increment file2_index
-                elif token_docIDs[token_docIDs_index] < result[result_index]:
-                    token_docIDs += 1
+                elif postings[postings_index]["document_id"] < result[result_index]["document_id"]:
+                    postings_index += 1
                 #if file1_value = file2_value, append to R and increment both indexes
                 else:
                     R.append(result[result_index])
                     result_index += 1
-                    token_docIDs_index += 1
+                    postings_index += 1
             
             result = R
 
     # if result is empty, then no documents found in inverted index
     if result == None:
         return []
+
+    # sort result by tf-idf
+    result.sort(key=lambda x: x.get("tf-idf score", 0), reverse=True)
+
+    # doc_id_map is mapping of url -> docIDS
+    # reverse to get docIDS -> url
+    reversed_doc_id_map = {url: docID for docID, url in doc_id_map.items()}
     
-    # return result of list of document names (urls)
-
-###############################################
-# TODO: sort the result by tf-idf instead of alphabetical
-###############################################
-
-    return result
+    # return list of docIDs sorted by tf-idf
+    return [reversed_doc_id_map[doc["document_id"]] for doc in result]
 
 def get_query():
     # python3 search.py {write search query here}
