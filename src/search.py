@@ -2,12 +2,7 @@ import sys
 import json
 from indexer import inverted_index, tokenize
 
-#######################################################
-# TODO:
-# implement index offset from book keeping file
-# for now, it just loads entire final_index.json
-#######################################################
-
+# loads entire final_index.json
 def load_inverted_index(file_path):
     try:
         with open(file_path, 'r', encoding='utf-8') as file:
@@ -91,8 +86,7 @@ def search(query):
 
     return result
 
-if __name__ == '__main__':
-    
+def get_query():
     # python3 search.py {write search query here}
     # for src/TEST, command line argument = python3 search.py 6pm 
     if len(sys.argv) < 2:
@@ -117,3 +111,31 @@ if __name__ == '__main__':
             print("No documents found.")
     else:
         print("Inverted Index is empty.")
+
+
+# if __name__ == '__main__':
+    
+#     # python3 search.py {write search query here}
+#     # for src/TEST, command line argument = python3 search.py 6pm 
+#     if len(sys.argv) < 2:
+#         print("Invalid query.")
+#         sys.exit(1)
+
+#     # form the query string from command line arguments
+#     query = " ".join(sys.argv[1:])
+
+#     print(f"Search query: '{query}'\n")
+
+#     inverted_index = load_inverted_index("final_index.json")
+
+#     if inverted_index:
+#         search_result = search(query)
+#         if search_result:
+#             print("Documents found from query:")
+#             for document in search_result:
+#                 print(document)
+#         else:
+#             # if search_result is empty, then no documents found in inverted index
+#             print("No documents found.")
+#     else:
+#         print("Inverted Index is empty.")

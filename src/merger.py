@@ -7,6 +7,7 @@ def chunk_sort_and_save(file_path, chunk_size=10000):
     
     temp_files = []
     with open(file_path, "r", encoding="utf-8") as f:
+        # print(file_path)
         index_data = json.load(f)
         terms = list(index_data.items())
         
@@ -97,7 +98,7 @@ def merge_partial_indexes():
     for chunk_file in sorted_chunk_files:
         os.remove(chunk_file)
 
-if __name__ == '__main__':
+# if __name__ == '__main__':
 
-    # # the DEV folder - extract developer.zip inside the src folder
-    merge_partial_indexes()
+#     # # the DEV folder - extract developer.zip inside the src folder
+#     merge_partial_indexes()
