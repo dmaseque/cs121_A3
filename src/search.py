@@ -1,6 +1,9 @@
 import sys
 import json
-from indexer import inverted_index, tokenize, doc_id_map
+from indexer import inverted_index, tokenize
+
+with open("doc_id_mapping.json", 'r', encoding='utf-8') as file:
+    doc_id_map = json.load(file)
 
 # loads entire final_index.json
 def load_inverted_index(file_path):
