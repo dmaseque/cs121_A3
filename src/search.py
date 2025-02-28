@@ -21,11 +21,15 @@ def search(query):
     for token in query_tokens_weight:
         query_stemmed_tokens.append(token[0])
 
+    query_tokens = query.split()
+
+    query_tokens.extend(query_stemmed_tokens)
+
     # Initialize result as None, no documents
     result = None
 
     # for token in query of stemmed tokens, check for token in inverted index
-    for token in query_stemmed_tokens:
+    for token in query_tokens:
         # if token in inverted index, retrieve all the postings for that token
         postings = []
         if token in inverted_index:
