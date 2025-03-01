@@ -1,7 +1,9 @@
 import sys
 import json
 import time
-from indexer import tokenize
+from indexer import inverted_index, tokenize
+from sklearn.metrics.pairwise import cosine_similarity
+import math
 
 # Load doc id mapping
 with open("doc_id_mapping.json", 'r', encoding='utf-8') as file:
@@ -84,15 +86,43 @@ def search(query):
     if result == None:
         return []
 
-    # sort result by tf-idf
-    result.sort(key=lambda x: x.get("tf-idf score", 0), reverse=True)
+    # create query vector
+    query_vector = []
+    for token in query_stemmed_tokens:
+        # get token's IDF from inverted index
+        postings = get_postings(token)
+        # postings = inverted_index.get(token, [])
+        df_t = len(postings)
+        idf = math.log(len(doc_id_map) / (df_t))
+        # IDF used as query term's weight
+        # set TF for each query term as 1
+        query_vector.append(idf)
 
-    # doc_id_map is mapping of url -> docIDS
-    # reverse to get docIDS -> url
-    reversed_doc_id_map = {url: docID for docID, url in doc_id_map.items()}
-    
-    # return list of docIDs sorted by tf-idf
-    return [reversed_doc_id_map[doc["document_id"]] for doc in result][:5]
+     # compute cosine similarity for each document
+    doc_similarities = []
+    for doc in result:
+        doc_id = doc["document_id"]
+        doc_vector = []
+        for token in query_stemmed_tokens:
+            # retrieve postings for the token to get TF-IDF score for the document
+            postings = get_postings(token)
+            # get TF-IDF score for token ind ocument
+            tf_idf = next((posting["tf-idf score"] for posting in postings
+                            if posting["document_id"] == doc_id), 0)
+            # # get TF-IDF score for token in document
+            # tf_idf = next((posting["tf-idf score"] for posting in inverted_index.get(token, []) 
+            #               if posting["document_id"] == doc_id), 0)
+            doc_vector.append(tf_idf)
+
+        # use scikit-learn --> compute cosine similarity 
+        similarity = cosine_similarity([query_vector], [doc_vector])[0][0]
+        doc_similarities.append((doc_id, similarity))
+
+    # sort documents by cosine similarity
+    doc_similarities.sort(key=lambda x: x[1], reverse=True)
+
+    # return list of docIDs sorted by cosine similarity
+    return [doc_id for doc_id, _ in doc_similarities]
 
 def get_query():
     while True:
@@ -109,7 +139,7 @@ def get_query():
 
         print(f"\nSearch query: '{query}'\n")
 
-        # STart timer
+        # Start timer
         start_time = time.time()
 
         search_result = search(query)

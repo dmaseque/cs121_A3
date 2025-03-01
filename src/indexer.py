@@ -29,19 +29,33 @@ def tokenize(text, weight=1):
 
     # use Porter stemming for better textual matches
     stemmer = PorterStemmer()
-    tokens_stemmed = []
+    tokens_stemmed = []     # unigrams
     for token in tokens:
         # only add tokens that are more than 2 characters
         # do not include single letter tokens from contractions
         if len(token) > 2:
             tokens_stemmed.append((stemmer.stem(token), weight))
-    
-    return tokens_stemmed
 
+    # weigh trigram matches higher than bigrams, bigrams than unigrams 
+    bigram_weight = 1.25
+    trigram_weight = 1.5
+
+    # add 2-grams
+    # grabs stemmed word from current and next token, average individual words' weights for bigram's weight
+    bigrams = [(f"{tokens_stemmed[i][0]}_{tokens_stemmed[i+1][0]}", 
+                ((tokens_stemmed[i][1] + tokens_stemmed[i+1][1]) / 2) * bigram_weight)
+                for i in range(len(tokens_stemmed) - 1)]
+
+    # add 3-grams
+    trigrams = [(f"{tokens_stemmed[i][0]}_{tokens_stemmed[i+1][0]}_{tokens_stemmed[i+2][0]}", 
+                ((tokens_stemmed[i][1] + tokens_stemmed[i+1][1] + tokens_stemmed[i+2][1]) / 2) * trigram_weight)
+                for i in range(len(tokens_stemmed) - 2)]
+    
+    return tokens_stemmed + bigrams + trigrams
+    
 # computeWordFrequencies from Part A
 # Important text: adds default weight 1 and any extra weight for appearing in title (+2), headings(+1), or as bold/strong (+1)
 def computeWordFrequencies(tokens):
-
     word_frequencies = {}
 
     #iterate through every token/weight in tokens list
@@ -49,7 +63,6 @@ def computeWordFrequencies(tokens):
         # word_frequencies.get(token, 0) checks if token exists, using 0 as default frequency if it doesn't exist
         # increment frequency if token exists, otherwise set it to its weight
         word_frequencies[token] = word_frequencies.get(token, 0) + weight
-        
     return word_frequencies
 
 # add posting to inverted_index
@@ -62,11 +75,12 @@ def posting(document_id, term_freq):
         # list will later be populated with webpages including token
         if token not in inverted_index:
             inverted_index[token] = []
+    
         
         # posting : document name/id token was found in and its tf-idf score
         posting = {
             "document_id": document_id,
-            "tf-idf score": frequency
+            "tf": frequency # only store TF during initial indexing phase
         }
 
         # print(posting)
@@ -128,7 +142,6 @@ def create_inverted_indexes(dev):
             tokens = []
 
             # add weights to "important text" (actual weights can be adjusted later)
-
             # text in titles - additional weight of 2
             if soup.title: # soup.title directly accesses HTML document's <title> tag
                 tokens += tokenize(soup.title.get_text(), weight=2)
@@ -190,9 +203,9 @@ def get_document_id(document_name):
         doc_id_map[document_name] = doc_id_counter
         doc_id_counter += 1
     return doc_id_map[document_name]
+    
 
+if __name__ == '__main__':
 
-# if __name__ == '__main__':
-
-#     # # the DEV folder - extract developer.zip inside the src folder
-#     create_inverted_indexes('src/TEST')
+    # # the DEV folder - extract developer.zip inside the src folder
+    create_inverted_indexes('DEV')
