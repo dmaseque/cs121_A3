@@ -192,7 +192,7 @@ def get_document_id(document_name):
     return doc_id_map[document_name]
 
 
-# if __name__ == '__main__':
+if __name__ == '__main__':
 
-#     # # the DEV folder - extract developer.zip inside the src folder
-#     create_inverted_indexes('src/TEST')
+    # # the DEV folder - extract developer.zip inside the src folder
+    create_inverted_indexes('/home/cathyw8/cs121_A2/src/TEST/aiclub_ics_uci_edu')
