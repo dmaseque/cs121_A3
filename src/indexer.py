@@ -76,11 +76,12 @@ def posting(document_id, term_freq):
         # list will later be populated with webpages including token
         if token not in inverted_index:
             inverted_index[token] = []
+    
         
         # posting : document name/id token was found in and its tf-idf score
         posting = {
             "document_id": document_id,
-            "tf-idf score": frequency
+            "tf": frequency # only store TF during initial indexing phase
         }
 
         # print(posting)
@@ -208,4 +209,4 @@ def get_document_id(document_name):
 if __name__ == '__main__':
 
     # # the DEV folder - extract developer.zip inside the src folder
-    create_inverted_indexes('/home/cathyw8/cs121_A3/src/DEV')
+    create_inverted_indexes('/home/cathyw8/cs121_A3/src/TEST')

@@ -1,6 +1,7 @@
 import json
 import os
 import heapq
+import math
 
 # Sorts small chunks of a large file and writes them back to disk in JSON Lines format
 def chunk_sort_and_save(file_path, chunk_size=10000):
@@ -31,12 +32,29 @@ def stream_json_terms(file_path):
             yield (term, postings)
 
 def merge_partial_indexes():
+
+    # load doc_id_map from the JSON file
+    with open("doc_id_mapping.json", "r", encoding="utf-8") as file:
+        doc_id_map=json.load(file)
+
     bookkeeper = {}
 
     bookkeeper_file = "bookkeeping.json"
     index_folder = "partial_indexes"
     output_file = "final_index.json"  # Keep this name so it is compatible with generate_report
     partial_files = [os.path.join(index_folder, f) for f in os.listdir(index_folder) if f.startswith("partial_index_") and f.endswith(".json")]
+
+    # Track global var for IDF (N and df_t)
+    total_docs = len(doc_id_map) # total number of documents (N)
+    doc_freqs = {} # number of documents containing each term (df_t)
+
+    for file in partial_files:
+        with open(file, "r", encoding="utf-8") as f:
+            index_data = json.load(f)
+            for token, postings in index_data.items():
+                if token not in doc_freqs:
+                    doc_freqs[token] = 0
+                doc_freqs[token] += len(postings) # count documents containing the term
     
     # Sort each partial index in chunks and save to disk
     sorted_chunk_files = []
@@ -67,6 +85,17 @@ def merge_partial_indexes():
                     # Store byte position before writing the term
                     bookkeeper[current_term] = file.tell()
 
+                    # calculate IDF for term
+                    df_t = doc_freqs.get(current_term, 0)
+                    idf = math.log(total_docs / (df_t + 1))
+
+                    # updating postings with TF-IDF scores
+                    for posting in current_postings:
+                        tf = posting["tf"]
+                        tf_idf = tf * idf
+                        posting["tf-idf score"] = round(tf_idf, 2)
+
+                    # sort postings by TF-IDF score
                     current_postings.sort(key=lambda x: x.get("tf-idf score", 0), reverse=True)  
 
                     # Write term correctly without extra quotes
@@ -82,6 +111,19 @@ def merge_partial_indexes():
             if not first_entry:
                 file.write(",\n")
             bookkeeper[current_term] = file.tell()
+
+            # calculate IDF for the last term
+            df_t = doc_freqs.get(current_term, 0)
+            idf = math.log(total_docs / (df_t))
+
+            # update postings with TF-IDF scores
+            for posting in current_postings:
+                tf = posting["tf"]
+                posting["tf-idf score"] = tf * idf
+            
+            # sort postings by TF-IDF score
+            current_postings.sort(key=lambda x: x.get("tf-idf score", 0), reverse=True)
+
             file.write(f'"{current_term}": ')
             json.dump(current_postings, file)
 
