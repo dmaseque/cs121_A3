@@ -1,6 +1,7 @@
 import sys
 import json
 from indexer import inverted_index, tokenize
+from sklearn.metrics.pairwise import cosine_similarity
 
 with open("doc_id_mapping.json", 'r', encoding='utf-8') as file:
     doc_id_map = json.load(file)
@@ -71,15 +72,43 @@ def search(query):
     if result == None:
         return []
 
-    # sort result by tf-idf
-    result.sort(key=lambda x: x.get("tf-idf score", 0), reverse=True)
+    # create query vector
+    query_vector = []
+    for token in query_stemmed_tokens:
+        # get token's IDF from inverted index
+        postings = inverted_index.get(token, [])
+        df_t = len(postings)
+        idf = math.log(len(doc_id_map) / (df_t))
+        # IDF used as query term's weight
+        query_vector.append(idf)
 
-    # doc_id_map is mapping of url -> docIDS
-    # reverse to get docIDS -> url
-    reversed_doc_id_map = {url: docID for docID, url in doc_id_map.items()}
+     # ocmpute cosine similarity for each document
+    doc_similarities = []
+    for doc in result:
+        doc_id = doc["document_id"]
+        doc_vector = []
+        for token in query_stemmed_tokens:
+            # get TF-IDF score for token in document
+            tf_idf = next((posting["tf-idf score"] for posting in inverted_index.get(token, []) 
+                          if posting["document_id"] == doc_id), 0)
+            doc_vector.append(tf_idf)
+
+        # use scikit-learn --> compute cosine similarity 
+        similarity = cosine_similarity([query_vector], [doc_vector])[0][0]
+        doc_similarities.append((doc,id, similarity))
+
+    # sort documents by cosine similarity
+    doc_similarities.sort(key=lambda x: x[1], reverse=True)
+
+    # # doc_id_map is mapping of url -> docIDS
+    # # reverse to get docIDS -> url
+    # reversed_doc_id_map = {url: docID for docID, url in doc_id_map.items()}
     
-    # return list of docIDs sorted by tf-idf
-    return [reversed_doc_id_map[doc["document_id"]] for doc in result]
+    # # return list of docIDs sorted by tf-idf
+    # return [reversed_doc_id_map[doc["document_id"]] for doc in result]
+
+    # return list of docIDs sorted by cosine similarity
+    return [doc_id for doc_id, _ in doc_similarities]
 
 def get_query():
     # python3 search.py {write search query here}
