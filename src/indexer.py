@@ -211,7 +211,7 @@ if __name__ == '__main__':
     #create_inverted_index('src/DEV')
 
     # test folder only creates inverted index for files starting with the letter a
-    create_inverted_indexes("src/TEST")
+   # create_inverted_indexes("src/TEST")
 
-    # create_inverted_indexes("src/developer/DEV")
+    create_inverted_indexes("src/developer/DEV")
     merge_partial_indexes()
