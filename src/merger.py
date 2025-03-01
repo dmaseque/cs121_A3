@@ -116,10 +116,11 @@ def merge_partial_indexes():
             df_t = doc_freqs.get(current_term, 0)
             idf = math.log(total_docs / (df_t))
 
-            # update postings with TF-IDF scores
+            # updating postings with TF-IDF scores
             for posting in current_postings:
                 tf = posting["tf"]
-                posting["tf-idf score"] = tf * idf
+                tf_idf = tf * idf
+                posting["tf-idf score"] = round(tf_idf, 2)
             
             # sort postings by TF-IDF score
             current_postings.sort(key=lambda x: x.get("tf-idf score", 0), reverse=True)
