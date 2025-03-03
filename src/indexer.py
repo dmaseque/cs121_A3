@@ -5,7 +5,10 @@ import re
 import nltk
 from bs4 import BeautifulSoup
 from nltk.stem import PorterStemmer
+from simhash import Simhash
+from urllib.parse import urlparse
 import heapq
+import shutil
 
 inverted_index = {} # global variable of inverted index - key: token -> list of postings
 index_counter = 1 # current number of index being built
@@ -13,13 +16,59 @@ index_counter = 1 # current number of index being built
 doc_id_map = {}  # document_name (URL) -> mappings of document_id
 doc_id_counter = 0  # counter to assign IDs
 
+simhash_set = set() # unique Simhashes for detecting duplicates/near duplicates
+
 """
 MAX_DOCS MUST CHANGE BASED ON DEV (~10000) OR TEST (2)
 """
 MAX_DOCS = 10000 # number of documents until it is time to dump
 
+"""
+HAMMING_DISTANCE can be modifed by dev for likeness between pages. DEFAULT: 2
+"""
+HAMMING_DISTANCE = 2 # Distance between simhashes to determine uniqueness
+
 # # download nltk data for tokenization
 # nltk.download('punkt')
+
+# deletes the directory at the given path as well as all its contents
+def delete_dir(path):
+    try:
+        shutil.rmtree(path)
+    except Exception as e:
+        print(f"Error attempting to delete_dir: {e}")
+
+# returns True if url_name doesn't contain invalid extension i.e. .png/.pptx
+def is_valid_extension(url):
+    try:
+        parsed = urlparse(url)
+        if re.match(
+            r".*\.(css|js|bmp|gif|jpe?g|ico"
+            + r"|png|tiff?|mid|mp2|mp3|mp4"
+            + r"|wav|avi|mov|mpeg|ram|m4v|mkv|ogg|ogv|pdf"
+            + r"|ps|eps|tex|ppt|pptx|doc|docx|xls|xlsx|names"
+            + r"|data|dat|exe|bz2|tar|msi|bin|7z|psd|dmg|iso"
+            + r"|epub|dll|cnf|tgz|sha1"
+            + r"|thmx|mso|arff|rtf|jar|csv"
+            + r"|rm|smil|wmv|swf|wma|zip|rar|gz"
+            + r"|bak|sql|mdb|db|sqlite|ini|log|cfg"
+            + r"|vdi|vmdk|qcow2|img|mat|sav|dta|spss"
+            + r"|xz|lzma|zst|tar\.xz|bat|cmd|scr|vbs|apk)$", parsed.path.lower()):
+            return False
+            
+        return True
+    except Exception:
+        return False
+
+# returns True if tokens of said page belong to a unique Simhash
+def is_unique_page(tokens):
+    current_hash = Simhash(tokens).value
+    for old_hash in simhash_set: # Validates current hash against every hash already encountered
+        if bin(current_hash ^ old_hash).count('1') <= HAMMING_DISTANCE:  # Lower hamming_distance = docs must be closer to identical
+            return False
+    simhash_set.add(current_hash)
+    return True
+    
 
 # modified tokenize from Part A
 def tokenize(text, weight=1):
@@ -97,6 +146,13 @@ def create_inverted_indexes(dev):
     corpus = os.listdir(dev)
     doc_count = 0
 
+    # variables for testing
+    detected_dups = 0
+    detected_bad_extensions = 0
+
+    # delete partial_indexes folder before running to reset
+    delete_dir("partial_indexes")
+
     for domain in corpus:
         print(f'Indexing domain:{domain}')
         # json_files for each domain are in folder dev/{domain}
@@ -125,6 +181,12 @@ def create_inverted_indexes(dev):
             document_id = get_document_id(document_name)
 
             # posting - term frequency score
+            
+            # skip page if path extension contains invalid extensions i.e. .jpg/.pptx
+            if not is_valid_extension(document_name):
+                #error_log(f"{document_name} contains an invalid extension", "bad_ext_log")
+                detected_bad_extensions += 1
+                continue
 
             try: 
                 # parse through content of json file and tokenize text
@@ -159,6 +221,12 @@ def create_inverted_indexes(dev):
             # regular text - default weight of 1
             tokens += tokenize(soup.get_text(), weight=1)
 
+            # determine uniqueness of page by comparing current Simhash against existing Simhashes
+            if not is_unique_page(tokens):
+                #error_log(f"{document_name} is a duplicate", "dup_log")
+                detected_dups += 1
+                continue
+
             term_freq = computeWordFrequencies(tokens)
 
             # create posting for webpage and add to inverted_index
@@ -176,6 +244,7 @@ def create_inverted_indexes(dev):
     # dump mapping
     with open("doc_id_mapping.json", "w", encoding="utf-8") as file:
         json.dump(doc_id_map, file, indent=4)
+
 
 # save index to json file
 def dump_inverted_index():
@@ -203,6 +272,10 @@ def get_document_id(document_name):
         doc_id_map[document_name] = doc_id_counter
         doc_id_counter += 1
     return doc_id_map[document_name]
+
+def error_log(msg, path):
+    with open(path, 'a') as file:
+        file.write(msg + '\n')
     
 
 if __name__ == '__main__':
