@@ -37,16 +37,15 @@ def merge_partial_indexes():
     with open("doc_id_mapping.json", "r", encoding="utf-8") as file:
         doc_id_map=json.load(file)
 
-    bookkeeper = {}
+    # Track global var for IDF (N and df_t)
+    total_docs = len(doc_id_map) # total number of documents (N)
+    doc_freqs = {} # number of documents containing each term (df_t), calulated as length of postings list for a term
+    bookkeeper = {"total_docs": total_docs}
 
     bookkeeper_file = "bookkeeping.json"
     index_folder = "partial_indexes"
     output_file = "final_index.json"  # Keep this name so it is compatible with generate_report
     partial_files = [os.path.join(index_folder, f) for f in os.listdir(index_folder) if f.startswith("partial_index_") and f.endswith(".json")]
-
-    # Track global var for IDF (N and df_t)
-    total_docs = len(doc_id_map) # total number of documents (N)
-    doc_freqs = {} # number of documents containing each term (df_t)
 
     for file in partial_files:
         with open(file, "r", encoding="utf-8") as f:
@@ -94,6 +93,8 @@ def merge_partial_indexes():
                         tf = posting["tf"]
                         tf_idf = tf * idf
                         posting["tf-idf score"] = round(tf_idf, 2)
+                        # print(f"Term: {current_term}, tf: {tf}, idf: {idf}, tf-idf: {tf_idf}")
+                        # print(f"Term: {current_term}, total_docs: {total_docs}, df_t: {df_t}")
 
                     # sort postings by TF-IDF score
                     current_postings.sort(key=lambda x: x.get("tf-idf score", 0), reverse=True)  
@@ -121,7 +122,9 @@ def merge_partial_indexes():
                 tf = posting["tf"]
                 tf_idf = tf * idf
                 posting["tf-idf score"] = round(tf_idf, 2)
-            
+                # print(f"Term: {current_term}, tf: {tf}, idf: {idf}, tf-idf: {tf_idf}")
+                # print(f"Term: {current_term}, total_docs: {total_docs}, df_t: {df_t}")
+
             # sort postings by TF-IDF score
             current_postings.sort(key=lambda x: x.get("tf-idf score", 0), reverse=True)
 
