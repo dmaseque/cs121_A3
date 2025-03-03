@@ -5,9 +5,10 @@ from indexer import inverted_index, tokenize
 from sklearn.metrics.pairwise import cosine_similarity
 import math
 
-# Load doc id mapping
+# Load doc to id mapping
 with open("doc_id_mapping.json", 'r', encoding='utf-8') as file:
     doc_id_map = json.load(file)
+    doc_id_map = {v: k for k, v in doc_id_map.items()}
 
 # Load bookkeeping file to map terms to byte positions in the index file
 with open("bookkeeping.json", 'r', encoding='utf-8') as book_file:
@@ -122,7 +123,7 @@ def search(query):
     doc_similarities.sort(key=lambda x: x[1], reverse=True)
 
     # return list of docIDs sorted by cosine similarity
-    return [doc_id for doc_id, _ in doc_similarities]
+    return [doc_id_map[doc_id] for doc_id, _ in doc_similarities][:5]
 
 def get_query():
     while True:
@@ -159,5 +160,5 @@ def get_query():
         print(f"Query execution time: {elapsed_time:.2f} ms\n")
 
 
-# if __name__ == '__main__':
-#     get_query()
+if __name__ == '__main__':
+    get_query()
