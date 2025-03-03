@@ -33,6 +33,9 @@ def get_postings(term):
 # search function
 # input is the query string
 def search(query):
+    # retrieve total number of documents (N) from bookkeeping file
+    total_docs = bookkeeping.get("total_docs", len(doc_id_map)) # resort to len(doc_id_map) if "total docs" not found in postings
+     
     # tokenize the query string
     # output is list of (stemmed token, weight)
     query_tokens_weight = tokenize(query, weight=1)
@@ -86,16 +89,16 @@ def search(query):
     if result == None:
         return []
 
-    # create query vector
+    # create query vector, weighting with TF-IDF
     query_vector = []
     for token in query_stemmed_tokens:
         # get token's IDF from inverted index
         postings = get_postings(token)
-        # postings = inverted_index.get(token, [])
-        df_t = len(postings)
-        idf = math.log(len(doc_id_map) / (df_t))
+
         # IDF used as query term's weight
         # set TF for each query term as 1
+        df_t = len(postings)
+        idf = math.log(total_docs / (df_t))
         query_vector.append(idf)
 
      # compute cosine similarity for each document
@@ -109,9 +112,6 @@ def search(query):
             # get TF-IDF score for token ind ocument
             tf_idf = next((posting["tf-idf score"] for posting in postings
                             if posting["document_id"] == doc_id), 0)
-            # # get TF-IDF score for token in document
-            # tf_idf = next((posting["tf-idf score"] for posting in inverted_index.get(token, []) 
-            #               if posting["document_id"] == doc_id), 0)
             doc_vector.append(tf_idf)
 
         # use scikit-learn --> compute cosine similarity 
@@ -159,5 +159,5 @@ def get_query():
         print(f"Query execution time: {elapsed_time:.2f} ms\n")
 
 
-if __name__ == '__main__':
-    get_query()
+# if __name__ == '__main__':
+#     get_query()
