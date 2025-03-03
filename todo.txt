@@ -1,0 +1,6 @@
+Issues
+
+- Very uneven partial indexes. Maybe split by term instead of documents
+- Too many bad tokens, which is especially an issue with n-gram indexing
+    - Queries can now take up to 10830.83 ms
+- Some more filtering, I can copy over some of my filters for file extentions
