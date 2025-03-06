@@ -1,0 +1,17 @@
+Queries that performed well:
+
+hackathon
+
+
+Queries that didn't perform well:
+
+workshop - slow and some bad ranking
+alumni - slow
+master of software engineering - slow
+ICS undergraduate - bad ranking
+Cristina Lopes - bad ranking
+project - extremely slow and bad ranking. 
+
+
+Errors:
+fall 2023 - idf = math.log(total_docs / (df_t)) gave division by zero error
