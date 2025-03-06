@@ -93,6 +93,7 @@ def tokenize(text, weight=1):
         # do not include numbers > 5 digits
         if len(token) > 2 and not (token.isdigit() and len(token) > 5):
             tokens_stemmed.append((stemmer.stem(token), weight))
+            unique_tokens.add(token)
     # if there is too much replication, ignore
     if len(tokens) == 0 or len(unique_tokens)/len(tokens) < 0.05:
         return []
@@ -163,7 +164,7 @@ def create_inverted_indexes(dev):
     detected_bad_extensions = 0
 
     # delete partial_indexes folder before running to reset
-    delete_dir("partial_indexes")
+    #delete_dir("partial_indexes")
 
     for domain in corpus:
         print(f'Indexing domain:{domain}')
@@ -242,7 +243,7 @@ def create_inverted_indexes(dev):
                 #error_log(f"{document_name} is a duplicate", "dup_log")
                 detected_dups += 1
                 continue
-            
+
             # if no valid tokens, move on
             if tokens == []:
                 continue
@@ -302,4 +303,4 @@ def error_log(msg, path):
 if __name__ == '__main__':
 
     # # the DEV folder - extract developer.zip inside the src folder
-    create_inverted_indexes('src/DEV')
+    create_inverted_indexes('src/TEST')
