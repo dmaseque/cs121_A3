@@ -1,6 +1,8 @@
 Issues
 
-- Very uneven partial indexes. Maybe split by term instead of documents
-- Too many bad tokens, which is especially an issue with n-gram indexing
-    - Queries can now take up to 10830.83 ms
-- Some more filtering, I can copy over some of my filters for file extentions
+- Uneven partial indexes. Maybe split by term instead of documents
+- Slow calculations for cosine simularity
+    - Pruning (MaxScore? it can be done in merger)
+
+Possible improvements:
+- Normalizing term frequencies to account for variance in pages?
