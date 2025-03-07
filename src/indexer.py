@@ -1,11 +1,11 @@
 import os
-import sys
 import json 
 import re
-import nltk
 from bs4 import BeautifulSoup
 from nltk.stem import PorterStemmer
-import heapq
+from simhash import Simhash
+from urllib.parse import urlparse
+import shutil
 
 inverted_index = {} # global variable of inverted index - key: token -> list of postings
 index_counter = 1 # current number of index being built
@@ -13,13 +13,70 @@ index_counter = 1 # current number of index being built
 doc_id_map = {}  # document_name (URL) -> mappings of document_id
 doc_id_counter = 0  # counter to assign IDs
 
+simhash_set = set() # unique Simhashes for detecting duplicates/near duplicates
+
 """
 MAX_DOCS MUST CHANGE BASED ON DEV (~10000) OR TEST (2)
 """
 MAX_DOCS = 10000 # number of documents until it is time to dump
 
+"""
+HAMMING_DISTANCE can be modifed by dev for likeness between pages. DEFAULT: 2
+"""
+HAMMING_DISTANCE = 4 # Distance between simhashes to determine uniqueness
+
+"""
+MAX_FILE_SIZE helps prevent indexing large json files, likely to have little valuable info. DEFAULT: 1000KB
+"""
+MAX_FILE_SIZE = 1000 * 1024  # 1000KB in bytes
+
 # # download nltk data for tokenization
 # nltk.download('punkt')
+
+# deletes the directory at the given path as well as all its contents
+def delete_dir(path):
+    try:
+        shutil.rmtree(path)
+    except Exception as e:
+        print(f"Error attempting to delete_dir: {e}")
+
+# returns True if url_name is valid
+def is_valid(url):
+    try:
+        parsed = urlparse(url)
+        file_extensions = ( r".*\.(css|js|bmp|gif|jpe?g|ico|img|png|tiff?|mid|mp2|mp3|mp4|"
+                            r"wav|avi|mov|mpeg|ram|m4v|mkv|ogg|ogv|pdf|ps|eps|tex|ppt|pptx|doc|"
+                            r"docx|xls|xlsx|names|data|dat|exe|bz2|tar|msi|bin|7z|psd|dmg|iso|"
+                            r"epub|dll|cnf|tgz|sha1|thmx|mso|arff|rtf|jar|csv|rm|smil|wmv|swf|"
+                            r"wma|zip|rar|gz|war|apk|mpg|bam|emx|bib|shar|lif|ppsx|wvx|odc|pps|xml|fig|dtd|sql|java|cp|sh|svg|conf|ipynb|json|scm|ff|py|log|model|cc|sas|tsv)$" )
+        # Exclude file extensions in params and query
+        if re.match(file_extensions, parsed.path.lower()) or re.match(file_extensions, parsed.query.lower()):
+            return False
+        
+        # Avoid txt from these paths since they are all data or code examples with little textual information
+        if re.search(r'(~wjohnson|~babaks|~jacobson|bibtex|~stasio|~kay|~seal).*\.txt$', parsed.path.lower()):
+            return False
+        
+        low_value_patterns = ["raw-attachment", "public_data"]
+        if any(pattern in parsed.path.lower() or pattern in parsed.query.lower() for pattern in low_value_patterns):
+            return False
+        
+        # Return true when all filters are passed
+        return True
+    
+    except TypeError:
+        print ("TypeError for ", parsed)
+        raise
+
+# returns True if tokens of said page belong to a unique Simhash
+def is_unique_page(tokens):
+    current_hash = Simhash(tokens).value
+    for old_hash in simhash_set: # Validates current hash against every hash already encountered
+        if bin(current_hash ^ old_hash).count('1') <= HAMMING_DISTANCE:  # Lower hamming_distance = docs must be closer to identical
+            return False
+    simhash_set.add(current_hash)
+    return True
+    
 
 # modified tokenize from Part A
 def tokenize(text, weight=1):
@@ -30,11 +87,16 @@ def tokenize(text, weight=1):
     # use Porter stemming for better textual matches
     stemmer = PorterStemmer()
     tokens_stemmed = []     # unigrams
+    unique_tokens = set()
     for token in tokens:
         # only add tokens that are more than 2 characters
-        # do not include single letter tokens from contractions
-        if len(token) > 2:
+        # do not include numbers > 5 digits
+        if len(token) > 2 and not (token.isdigit() and len(token) > 5):
             tokens_stemmed.append((stemmer.stem(token), weight))
+            unique_tokens.add(token)
+    # if there is too much replication, ignore
+    if len(tokens) == 0 or len(unique_tokens)/len(tokens) < 0.05:
+        return []
 
     # weigh trigram matches higher than bigrams, bigrams than unigrams 
     bigram_weight = 1.25
@@ -97,6 +159,13 @@ def create_inverted_indexes(dev):
     corpus = os.listdir(dev)
     doc_count = 0
 
+    # variables for testing
+    detected_dups = 0
+    detected_bad_extensions = 0
+
+    # delete partial_indexes folder before running to reset
+    #delete_dir("partial_indexes")
+
     for domain in corpus:
         print(f'Indexing domain:{domain}')
         # json_files for each domain are in folder dev/{domain}
@@ -108,6 +177,11 @@ def create_inverted_indexes(dev):
             #print(f'Processing webpage:{webpage}')
             # webpage_path is dev/{domain}/{webpage}
             webpage_path = os.path.join(json_files, webpage)
+
+            # Check file size
+            if os.path.getsize(webpage_path) > MAX_FILE_SIZE:
+                print(f"Skipping {webpage} due to file size > 1000KB")
+                continue
         
             # open the json file and load the contents
             try:
@@ -122,9 +196,14 @@ def create_inverted_indexes(dev):
 
             # posting - document_name is the url in the json file
             document_name = content['url']
-            document_id = get_document_id(document_name)
 
             # posting - term frequency score
+            
+            # skip page if path extension contains invalid url
+            if not is_valid(document_name):
+                #error_log(f"{document_name} contains an invalid extension", "bad_ext_log")
+                detected_bad_extensions += 1
+                continue
 
             try: 
                 # parse through content of json file and tokenize text
@@ -144,24 +223,35 @@ def create_inverted_indexes(dev):
             # add weights to "important text" (actual weights can be adjusted later)
             # text in titles - additional weight of 2
             if soup.title: # soup.title directly accesses HTML document's <title> tag
-                tokens += tokenize(soup.title.get_text(), weight=2)
+                tokens += tokenize(soup.title.get_text(), weight=5) # testing adjustment to 5
 
             # text in headings - additional weight of 1
             for tag in ['h1', 'h2', 'h3']:
                 for element in soup.find_all(tag):
-                    tokens += tokenize(element.get_text(), weight=1)
+                    tokens += tokenize(element.get_text(), weight=3) # testing adjustment to 3
 
             # text in bold/strong - additional weight of 1
             for tag in ['b', 'strong']: 
                 for element in soup.find_all(tag):
-                    tokens += tokenize(element.get_text(), weight=1)
+                    tokens += tokenize(element.get_text(), weight=2)
 
             # regular text - default weight of 1
             tokens += tokenize(soup.get_text(), weight=1)
 
+            # determine uniqueness of page by comparing current Simhash against existing Simhashes
+            if not is_unique_page(tokens):
+                #error_log(f"{document_name} is a duplicate", "dup_log")
+                detected_dups += 1
+                continue
+
+            # if no valid tokens, move on
+            if tokens == []:
+                continue
+
             term_freq = computeWordFrequencies(tokens)
 
             # create posting for webpage and add to inverted_index
+            document_id = get_document_id(document_name) # do this here to avoid adding dupes to doc_id_map
             posting(document_id, term_freq)
 
             # DUMP EVERY MAX_DOCS DOCS
@@ -176,6 +266,7 @@ def create_inverted_indexes(dev):
     # dump mapping
     with open("doc_id_mapping.json", "w", encoding="utf-8") as file:
         json.dump(doc_id_map, file, indent=4)
+
 
 # save index to json file
 def dump_inverted_index():
@@ -203,9 +294,13 @@ def get_document_id(document_name):
         doc_id_map[document_name] = doc_id_counter
         doc_id_counter += 1
     return doc_id_map[document_name]
+
+def error_log(msg, path):
+    with open(path, 'a') as file:
+        file.write(msg + '\n')
     
 
 if __name__ == '__main__':
 
     # # the DEV folder - extract developer.zip inside the src folder
-    create_inverted_indexes('DEV')
+    create_inverted_indexes('src/TEST')

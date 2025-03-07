@@ -3,7 +3,7 @@ import merger
 import search
 
 def run():
-    indexer.create_inverted_indexes('TEST')
+    indexer.create_inverted_indexes('developer/DEV')
     merger.merge_partial_indexes()
     search.get_query()
 
