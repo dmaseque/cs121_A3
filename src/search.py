@@ -50,40 +50,10 @@ def search(query):
     # output is list of (stemmed token, weight)
     query_tokens_weight = tokenize(query, weight=1)
     # get only the stemmed tokens => token[0] (first value of token)
-    query_stemmed_tokens = []
-    for token in query_tokens_weight:
-        query_stemmed_tokens.append(token[0])
+    query_stemmed_tokens = [token[0] for token in query_tokens_weight]
 
     # Initialize result as None, no documents
     result = None
-
-    # for token in query of stemmed tokens, check for token in inverted index
-    for token in query_stemmed_tokens:
-        # if token in inverted index, retrieve all the postings for that token
-        postings = get_cached_postings(token)
-
-        # AND operation to get intersection of sets
-
-        # if there is nothing in result, add set of docIDs for token in query
-        if result is None:
-            result = postings
-        # if result contains docIDs, only add to result if docIDs in postings AND result
-        else:
-            # modified from partB of assignment 1
-
-            # Convert lists of dictionaries into sets of document IDs
-            result_ids = {doc["document_id"] for doc in result}
-            postings_ids = {doc["document_id"] for doc in postings}
-
-            # Find the intersection
-            common_ids = result_ids & postings_ids
-
-            # Filter to only include documents in the intersection
-            result = [doc for doc in result if doc["document_id"] in common_ids]
-
-    # if result is empty, then no documents found in inverted index
-    if result == None:
-        return []
 
     # create query vector, weighting with TF-IDF
     query_vector = []
@@ -95,29 +65,40 @@ def search(query):
         # set TF for each query term as 1
         df_t = len(postings)
         # to avoid ZeroDivisionError, handle casse where df_t is 0 (query terms don't exist in any of the indexed documents)
-        if df_t == 0:
-            idf = 0
-        else:
-            idf = math.log(total_docs / (df_t))
+        idf = math.log((total_docs + 1) / (df_t + 1)) + 1  # Smoothed IDF
         query_vector.append(idf)
 
-     # compute cosine similarity for each document
-    doc_similarities = []
+    # compute cosine similarity for each document
+    # Precompute TF-IDF scores for all tokens in query
+    tf_idf_lookup = {}  # {document_id: np.array(tf-idf scores)}
 
-    for doc in result:
-        doc_id = doc["document_id"]
-        doc_vector = []
-        for token in query_stemmed_tokens:
-            # retrieve postings for the token to get TF-IDF score for the document
-            postings = get_cached_postings(token)
-            # get TF-IDF score for token ind ocument
-            tf_idf = next((posting["tf-idf score"] for posting in postings
-                            if posting["document_id"] == doc_id), 0)
-            doc_vector.append(tf_idf)
+    for token in query_stemmed_tokens:
+        postings = get_cached_postings(token)  # Retrieve postings once per token
 
-        # use scikit-learn --> compute cosine similarity 
-        similarity = cosine_similarity([query_vector], [doc_vector])[0][0]
-        doc_similarities.append((doc_id, similarity))
+        # Extract document IDs from postings
+        postings_ids = {doc["document_id"] for doc in postings}
+
+        # Perform set intersection
+        if result is None:
+            result = postings_ids  # First token sets the initial result
+        else:
+            result &= postings_ids  # Keep only common document IDs
+
+        for posting in postings:
+            doc_id = posting["document_id"]
+            if doc_id in result:  # Only consider intersected documents
+                if doc_id not in tf_idf_lookup:
+                    tf_idf_lookup[doc_id] = np.zeros(len(query_stemmed_tokens))
+                tf_idf_lookup[doc_id][query_stemmed_tokens.index(token)] = posting["tf-idf score"]
+
+    # Convert query vector to numpy array
+    query_vector = np.array(query_vector).reshape(1, -1)
+
+    # Compute cosine similarities efficiently
+    doc_similarities = [
+        (doc_id, cosine_similarity(query_vector, doc_vector.reshape(1, -1))[0][0])
+        for doc_id, doc_vector in tf_idf_lookup.items()
+    ]
 
     # sort documents by cosine similarity
     doc_similarities.sort(key=lambda x: x[1], reverse=True)
