@@ -1,0 +1,17 @@
+Queries that performed well:
+
+hackathon
+fall 2023 - No documents found (ZeroDivisionError handled)
+
+
+Queries that didn't perform well:
+
+workshop - slow and some bad ranking
+alumni - slow
+master of software engineering - slow
+ICS undergraduate - bad ranking
+Cristina Lopes - bad ranking
+project - extremely slow and bad ranking. 
+
+
+Errors:

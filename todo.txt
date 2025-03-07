@@ -1,0 +1,8 @@
+Issues
+
+- Uneven partial indexes. Maybe split by term instead of documents
+- Slow calculations for cosine simularity
+    - Pruning (MaxScore? it can be done in merger)
+
+Possible improvements:
+- Normalizing term frequencies to account for variance in pages?

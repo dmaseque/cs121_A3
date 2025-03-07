@@ -1,25 +1,56 @@
-import sys
+import heapq
 import json
-from indexer import inverted_index, tokenize, doc_id_map
+import time
+from indexer import tokenize
+from sklearn.metrics.pairwise import cosine_similarity
+import math
+import numpy as np
 
-# loads entire final_index.json
-def load_inverted_index(file_path):
-    try:
-        with open(file_path, 'r', encoding='utf-8') as file:
-            return json.load(file)
-    except FileNotFoundError:
-        print(f"Error: '{file_path}' not found.")
+# Load doc to id mapping
+with open("doc_id_mapping.json", 'r', encoding='utf-8') as file:
+    doc_id_map = json.load(file)
+    doc_id_map = {v: k for k, v in doc_id_map.items()}
+
+# Load bookkeeping file to map terms to byte positions in the index file
+with open("bookkeeping.json", 'r', encoding='utf-8') as book_file:
+    bookkeeping = json.load(book_file)
+
+def get_postings(term):
+    if term not in bookkeeping:
+        return []
+    
+    # Get byte offset
+    position = bookkeeping[term]
+
+    # Open the index file and seek to the term's position
+    with open("final_index.json", "r", encoding="utf-8") as index_file:
+        # Move file pointer to term's location
+        index_file.seek(position)
+        # Read the term's data
+        line = index_file.readline().strip().rstrip(',')
+        data = json.loads("{" + line + "}") 
+        # # only include the first 25% of tf-idf scores, unless is goes below the minimum (25)
+        x = int(len(data[term])*.25) if len(data[term]) >= 100 else len(data[term])
+
+        return data[term][:x]
 
 # search function
 # input is the query string
 def search(query):
+    def get_cached_postings(term):
+        if term not in postings_cache:
+            postings_cache[term] = get_postings(term)
+        return postings_cache[term]
+    postings_cache = {}
+    
+    # retrieve total number of documents (N) from bookkeeping file
+    total_docs = bookkeeping.get("total_docs", len(doc_id_map)) # resort to len(doc_id_map) if "total docs" not found in postings
+     
     # tokenize the query string
     # output is list of (stemmed token, weight)
     query_tokens_weight = tokenize(query, weight=1)
     # get only the stemmed tokens => token[0] (first value of token)
-    query_stemmed_tokens = []
-    for token in query_tokens_weight:
-        query_stemmed_tokens.append(token[0])
+    query_stemmed_tokens = [token[0] for token in query_tokens_weight]
 
     query_tokens = query.split()
 
@@ -28,110 +59,91 @@ def search(query):
     # Initialize result as None, no documents
     result = None
 
-    # for token in query of stemmed tokens, check for token in inverted index
-    for token in query_tokens:
-        # if token in inverted index, retrieve all the postings for that token
-        postings = []
-        if token in inverted_index:
-            postings = inverted_index[token]     
+    # create query vector, weighting with TF-IDF
+    query_vector = []
+    for token in query_stemmed_tokens:
+        # get token's IDF from inverted index
+        postings = get_cached_postings(token)
 
-        # AND operation to get intersection of sets
+        # IDF used as query term's weight
+        # set TF for each query term as 1
+        df_t = len(postings)
+        # to avoid ZeroDivisionError, handle casse where df_t is 0 (query terms don't exist in any of the indexed documents)
+        idf = math.log((total_docs + 1) / (df_t + 1)) + 1  # Smoothed IDF
+        query_vector.append(idf)
 
-        # if there is nothing in result, add set of docIDs for token in query
+    # compute cosine similarity for each document
+    # Precompute TF-IDF scores for all tokens in query
+    tf_idf_lookup = {}  # {document_id: np.array(tf-idf scores)}
+
+    for token in query_stemmed_tokens:
+        postings = get_cached_postings(token)  # Retrieve postings once per token
+
+        # Extract document IDs from postings
+        postings_ids = {doc["document_id"] for doc in postings}
+
+        # Perform set intersection
         if result is None:
-            result = postings
-        # if result contains docIDs, only add to result if docIDs in postings AND result
+            result = postings_ids  # First token sets the initial result
         else:
-            # modified from partB of assignment 1
+            result &= postings_ids  # Keep only common document IDs
 
-            #sort the result postings and postings by docID
-            result.sort(key=lambda x: x.get("document_id"))
-            postings.sort(key=lambda x: x.get("document_id"))
+        for posting in postings:
+            doc_id = posting["document_id"]
+            if doc_id in result:  # Only consider intersected documents
+                if doc_id not in tf_idf_lookup:
+                    tf_idf_lookup[doc_id] = np.zeros(len(query_stemmed_tokens))
+                tf_idf_lookup[doc_id][query_stemmed_tokens.index(token)] = posting["tf-idf score"]
 
-            #Algorithm 3: Sorted Lists Approach from Discussion Week 2 slides
-            R = []
-            result_index = 0
-            postings_index = 0
-            #iterate through both text files, stop when reached end of one of the files
-            while result_index < len(result) and postings_index < len(postings):
-                #if file_1 value < file2_value, increment file1_index
-                if result[result_index]["document_id"] < postings[postings_index]["document_id"]:
-                    result_index += 1
-                #if file_2 value < file1_value, increment file2_index
-                elif postings[postings_index]["document_id"] < result[result_index]["document_id"]:
-                    postings_index += 1
-                #if file1_value = file2_value, append to R and increment both indexes
-                else:
-                    R.append(result[result_index])
-                    result_index += 1
-                    postings_index += 1
-            
-            result = R
+    # Convert query vector to numpy array
+    query_vector = np.array(query_vector).reshape(1, -1)
 
-    # if result is empty, then no documents found in inverted index
-    if result == None:
-        return []
+    # Compute cosine similarities efficiently
+    doc_similarities = [
+        (doc_id, cosine_similarity(query_vector, doc_vector.reshape(1, -1))[0][0])
+        for doc_id, doc_vector in tf_idf_lookup.items()
+    ]
 
-    # sort result by tf-idf
-    result.sort(key=lambda x: x.get("tf-idf score", 0), reverse=True)
+    # sort documents by cosine similarity
+    doc_similarities.sort(key=lambda x: x[1], reverse=True)
 
-    # doc_id_map is mapping of url -> docIDS
-    # reverse to get docIDS -> url
-    reversed_doc_id_map = {url: docID for docID, url in doc_id_map.items()}
-    
-    # return list of docIDs sorted by tf-idf
-    return [reversed_doc_id_map[doc["document_id"]] for doc in result]
+    # return list of docIDs sorted by cosine similarity
+    return [doc_id_map[doc_id] for doc_id, _ in doc_similarities][:5]
 
 def get_query():
-    # python3 search.py {write search query here}
-    # for src/TEST, command line argument = python3 search.py 6pm 
-    if len(sys.argv) < 2:
-        print("Invalid query.")
-        sys.exit(1)
+    while True:
+        # Prompt user for query
+        query = input("Enter search query (or type 'exit' to quit): ").strip()
+        
+        if query.lower() == "exit":
+            print("Exiting search.")
+            break
 
-    # form the query string from command line arguments
-    query = " ".join(sys.argv[1:])
+        if not query:
+            print("Invalid query. Please enter a valid search term.")
+            continue
 
-    print(f"Search query: '{query}'\n")
+        print(f"\nSearch query: '{query}'\n")
 
-    inverted_index = load_inverted_index("final_index.json")
+        # Start timer
+        start_time = time.time()
 
-    if inverted_index:
         search_result = search(query)
+        
+        # End timer
+        end_time = time.time()
+        # Get difference and convert to milliseconds
+        elapsed_time = (end_time - start_time) * 1000 
+
         if search_result:
             print("Documents found from query:")
             for document in search_result:
                 print(document)
         else:
-            # if search_result is empty, then no documents found in inverted index
             print("No documents found.")
-    else:
-        print("Inverted Index is empty.")
+
+        print(f"Query execution time: {elapsed_time:.2f} ms\n")
 
 
-# if __name__ == '__main__':
-    
-#     # python3 search.py {write search query here}
-#     # for src/TEST, command line argument = python3 search.py 6pm 
-#     if len(sys.argv) < 2:
-#         print("Invalid query.")
-#         sys.exit(1)
-
-#     # form the query string from command line arguments
-#     query = " ".join(sys.argv[1:])
-
-#     print(f"Search query: '{query}'\n")
-
-#     inverted_index = load_inverted_index("final_index.json")
-
-#     if inverted_index:
-#         search_result = search(query)
-#         if search_result:
-#             print("Documents found from query:")
-#             for document in search_result:
-#                 print(document)
-#         else:
-#             # if search_result is empty, then no documents found in inverted index
-#             print("No documents found.")
-#     else:
-#         print("Inverted Index is empty.")
+if __name__ == '__main__':
+    get_query()
