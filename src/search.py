@@ -94,7 +94,11 @@ def search(query):
         # IDF used as query term's weight
         # set TF for each query term as 1
         df_t = len(postings)
-        idf = math.log(total_docs / (df_t))
+        # to avoid ZeroDivisionError, handle casse where df_t is 0 (query terms don't exist in any of the indexed documents)
+        if df_t == 0:
+            idf = 0
+        else:
+            idf = math.log(total_docs / (df_t))
         query_vector.append(idf)
 
      # compute cosine similarity for each document

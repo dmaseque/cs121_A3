@@ -1,6 +1,7 @@
 Queries that performed well:
 
 hackathon
+fall 2023 - No documents found (ZeroDivisionError handled)
 
 
 Queries that didn't perform well:
@@ -14,4 +15,3 @@ project - extremely slow and bad ranking.
 
 
 Errors:
-fall 2023 - idf = math.log(total_docs / (df_t)) gave division by zero error

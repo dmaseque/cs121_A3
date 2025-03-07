@@ -5,7 +5,6 @@ import math
 
 # Sorts small chunks of a large file and writes them back to disk in JSON Lines format
 def chunk_sort_and_save(file_path, chunk_size=10000):
-    
     temp_files = []
     with open(file_path, "r", encoding="utf-8") as f:
         # print(file_path)
