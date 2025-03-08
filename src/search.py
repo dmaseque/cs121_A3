@@ -49,19 +49,22 @@ def search(query):
     # tokenize the query string
     # output is list of (stemmed token, weight)
     query_tokens_weight = tokenize(query, weight=1)
+
     # get only the stemmed tokens => token[0] (first value of token)
     query_stemmed_tokens = [token[0] for token in query_tokens_weight]
 
     query_tokens = query.split()
 
-    query_tokens.extend(query_stemmed_tokens)
+    # query_tokens.extend(query_stemmed_tokens)
+
+    query_tokens = list(set(query_tokens))
 
     # Initialize result as None, no documents
     result = None
 
     # create query vector, weighting with TF-IDF
     query_vector = []
-    for token in query_stemmed_tokens:
+    for token in query_tokens:
         # get token's IDF from inverted index
         postings = get_cached_postings(token)
 
@@ -76,7 +79,8 @@ def search(query):
     # Precompute TF-IDF scores for all tokens in query
     tf_idf_lookup = {}  # {document_id: np.array(tf-idf scores)}
 
-    for token in query_stemmed_tokens:
+    for token in query_tokens:
+        # print(token)
         postings = get_cached_postings(token)  # Retrieve postings once per token
 
         # Extract document IDs from postings
@@ -92,8 +96,8 @@ def search(query):
             doc_id = posting["document_id"]
             if doc_id in result:  # Only consider intersected documents
                 if doc_id not in tf_idf_lookup:
-                    tf_idf_lookup[doc_id] = np.zeros(len(query_stemmed_tokens))
-                tf_idf_lookup[doc_id][query_stemmed_tokens.index(token)] = posting["tf-idf score"]
+                    tf_idf_lookup[doc_id] = np.zeros(len(query_tokens))
+                tf_idf_lookup[doc_id][query_tokens.index(token)] = posting["tf-idf score"]
 
     # Convert query vector to numpy array
     query_vector = np.array(query_vector).reshape(1, -1)
