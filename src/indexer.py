@@ -18,7 +18,7 @@ simhash_set = set() # unique Simhashes for detecting duplicates/near duplicates
 """
 MAX_DOCS MUST CHANGE BASED ON DEV (~10000) OR TEST (2)
 """
-MAX_DOCS = 10000 # number of documents until it is time to dump
+MAX_DOCS = 8000 # number of documents until it is time to dump
 
 """
 HAMMING_DISTANCE can be modifed by dev for likeness between pages. DEFAULT: 2
@@ -48,12 +48,12 @@ def is_valid(url):
                             r"wav|avi|mov|mpeg|ram|m4v|mkv|ogg|ogv|pdf|ps|eps|tex|ppt|pptx|doc|"
                             r"docx|xls|xlsx|names|data|dat|exe|bz2|tar|msi|bin|7z|psd|dmg|iso|"
                             r"epub|dll|cnf|tgz|sha1|thmx|mso|arff|rtf|jar|csv|rm|smil|wmv|swf|"
-                            r"wma|zip|rar|gz|war|apk|mpg|bam|emx|bib|shar|lif|ppsx|wvx|odc|pps|xml|fig|dtd|sql|java|cp|sh|svg|conf|ipynb|json|scm|ff|py|log|model|cc|sas|tsv)$" )
+                            r"wma|zip|rar|gz|war|apk|mpg|bam|emx|bib|shar|lif|ppsx|wvx|odc|pps|xml|fig|dtd|sql|java|cp|sh|svg|conf|ipynb|json|scm|ff|py|log|model|cc|sas|tsv|map)$" )
         # Exclude file extensions in params and query
         if re.match(file_extensions, parsed.path.lower()) or re.match(file_extensions, parsed.query.lower()):
             return False
         
-        # Avoid txt from these paths since they are all data or code examples with little textual information
+        # Avoid txt from these paths since they are all data or code examples
         if re.search(r'(~wjohnson|~babaks|~jacobson|bibtex|~stasio|~kay|~seal).*\.txt$', parsed.path.lower()):
             return False
         
@@ -125,6 +125,14 @@ def computeWordFrequencies(tokens):
         # word_frequencies.get(token, 0) checks if token exists, using 0 as default frequency if it doesn't exist
         # increment frequency if token exists, otherwise set it to its weight
         word_frequencies[token] = word_frequencies.get(token, 0) + weight
+
+    # Find the maximum frequency in the word_frequencies
+    max_freq = max(word_frequencies.values(), default=1)
+
+    # normalize and scale to the range 0-100
+    for token in word_frequencies:
+        # Normalize by dividing by max frequency, then scale to 0-100
+        word_frequencies[token] = round((word_frequencies[token] / max_freq) * 100, 2)
     return word_frequencies
 
 # add posting to inverted_index
@@ -246,6 +254,7 @@ def create_inverted_indexes(dev):
 
             # if no valid tokens, move on
             if tokens == []:
+                print(f"Skipping {webpage} due to no valid tokens")
                 continue
 
             term_freq = computeWordFrequencies(tokens)
@@ -303,4 +312,4 @@ def error_log(msg, path):
 if __name__ == '__main__':
 
     # # the DEV folder - extract developer.zip inside the src folder
-    create_inverted_indexes('src/TEST')
+    create_inverted_indexes('src/DEV')
