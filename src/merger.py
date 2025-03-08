@@ -85,7 +85,7 @@ def merge_partial_indexes():
 
                     # calculate IDF for term
                     df_t = doc_freqs.get(current_term, 0)
-                    idf = math.log((total_docs + 1) / (df_t + 1)) + 1  # Smoothed IDF
+                    idf = math.log((total_docs + 1) / (df_t + 1))  # Smoothed IDF
 
                     # updating postings with TF-IDF scores
                     for posting in current_postings:
@@ -114,7 +114,7 @@ def merge_partial_indexes():
 
             # calculate IDF for the last term
             df_t = doc_freqs.get(current_term, 0)
-            idf = math.log(total_docs / (df_t))
+            idf = math.log((total_docs + 1) / (df_t + 1))  # Smoothed IDF
 
             # updating postings with TF-IDF scores
             for posting in current_postings:
