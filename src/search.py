@@ -1,7 +1,6 @@
-import heapq
 import json
 import time
-from indexer import tokenize
+from indexer import tokenize, computeWordFrequencies
 from sklearn.metrics.pairwise import cosine_similarity
 import math
 import numpy as np
@@ -30,7 +29,7 @@ def get_postings(term):
         line = index_file.readline().strip().rstrip(',')
         data = json.loads("{" + line + "}") 
 
-        return data[term][:200]
+        return data[term]
 
 # search function
 # input is the query string
@@ -49,23 +48,27 @@ def search(query):
     query_tokens_weight = tokenize(query, weight=1)
     # get only the stemmed tokens => token[0] (first value of token)
     query_stemmed_tokens = [token[0] for token in query_tokens_weight]
+    query_freqs = computeWordFrequencies([(token, 1) for token in query_stemmed_tokens])
 
     # Initialize result as None, no documents
     result = None
 
+    for token in query_stemmed_tokens:
+        if "_" in token:
+            continue
+        postings = get_cached_postings(token)[:200]  # Retrieve postings once per token
+
+        # Extract document IDs from postings
+        postings_ids = {doc["document_id"] for doc in postings}
+
+        # Perform set intersection
+        if result is None:
+            result = postings_ids  # First token sets the initial result
+        else:
+            result &= postings_ids  # Keep only common document IDs
+
     # create query vector, weighting with TF-IDF
     query_vector = []
-    for token in query_stemmed_tokens:
-        # get token's IDF from inverted index
-        postings = get_cached_postings(token)
-
-        # set TF as # of times it appears in query
-        tf = query_stemmed_tokens.count(token)
-        df_t = len(postings)
-        # to avoid ZeroDivisionError, handle casse where df_t is 0 (query terms don't exist in any of the indexed documents)
-        idf = math.log((total_docs + 1) / (df_t + 1))  # Smoothed IDF
-        tf_idf = (1 + math.log(tf)) * idf
-        query_vector.append(round(tf_idf, 3))
 
     # compute cosine similarity for each document
     # Precompute TF-IDF scores for all tokens in query
@@ -77,11 +80,15 @@ def search(query):
         # Extract document IDs from postings
         postings_ids = {doc["document_id"] for doc in postings}
 
-        # Perform set intersection
-        if result is None:
-            result = postings_ids  # First token sets the initial result
-        else:
-            result &= postings_ids  # Keep only common document IDs
+        # set TF as # of times it appears in query
+        tf = query_freqs[token]
+        df_t = len(postings)
+        # to avoid ZeroDivisionError, handle casse where df_t is 0 (query terms don't exist in any of the indexed documents)
+        idf = math.log((total_docs + 1) / (df_t + 1))  # Smoothed IDF
+        tf_idf = (1 + math.log(tf)) * idf
+        query_vector.append(round(tf_idf, 3))
+
+        postings = postings[:200]
 
         for posting in postings:
             doc_id = posting["document_id"]
