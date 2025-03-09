@@ -2,6 +2,8 @@ Queries that performed well:
 
 hackathon
 fall 2023 - No documents found (ZeroDivisionError handled)
+Iftekhar Ahmed - handled upper case search queries, fragments
+machine learning - time was 1555 ms, only retrieve top 200 postings and now time is 150 ms. some urls have fragments and are 404 status codes
 
 
 Queries that didn't perform well:
@@ -12,6 +14,19 @@ master of software engineering - slow
 ICS undergraduate - bad ranking
 Cristina Lopes - bad ranking
 project - extremely slow and bad ranking. 
+machine learning - slow
 
 
-Errors:
+Errors and Fixes:
+
+urls with 404 status error still retrieved - mondego, hombao
+
+
+Search queries
+- computer science faculty
+- data science course
+- engineering project
+- technology research
+- internship program
+- dksdlfefjawofe
+- ics 33 programming assignments
