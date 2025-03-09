@@ -84,27 +84,6 @@ def is_valid(url, content):
         low_value_patterns = ["raw-attachment", "public_data"]
         if any(pattern in parsed.path.lower() or pattern in parsed.query.lower() for pattern in low_value_patterns):
             return False
-        
-        # if there are no contents, return false
-        if not content.strip():
-            return False
-        
-        # if no html tags, return false
-        if not any(tag in content.lower() for tag in ["<html", "<body", "<head"]):
-            return False
-        
-        # transform content to bytes
-        if isinstance(content, str):
-            content = content.encode("utf-8")
-
-        # look for html content and return false if not found
-        try:
-            tree = html.fromstring(content)
-        except Exception:
-            return False
-        
-        if not tree.xpath("//body") and not tree.xpath("//html"):
-            return False
 
         # Return true when all filters are passed
         return True
@@ -281,17 +260,18 @@ def create_inverted_indexes(dev):
             # transform content to bytes
             content_bytes = content["content"]
 
-            if isinstance(content_bytes, str):
-                content_bytes = content_bytes.encode("utf-8")
+            if content_bytes.strip():
+                if isinstance(content_bytes, str):
+                    content_bytes = content_bytes.encode("utf-8")
 
-            tree = html.fromstring(content_bytes)
+                tree = html.fromstring(content_bytes)
 
-            # retrieve all the anchor words in a list anchor_text
-            for anchor in tree.xpath("//a[@href]"):
-                anchor_text = anchor.text_content().strip().lower()
+                # retrieve all the anchor words in a list anchor_text
+                for anchor in tree.xpath("//a[@href]"):
+                    anchor_text = anchor.text_content().strip().lower()
 
-            # turn anchor words into tokens and give a large weight because it contains target url
-            tokens += tokenize(anchor_text, weight=10)
+                # turn anchor words into tokens and give a large weight because it contains target url
+                tokens += tokenize(anchor_text, weight=10)
 
             # add weights to "important text" (actual weights can be adjusted later)
             # text in titles - additional weight of 2
@@ -377,4 +357,4 @@ def error_log(msg, path):
 if __name__ == '__main__':
 
     # # the DEV folder - extract developer.zip inside the src folder
-    create_inverted_indexes('DEV')
+    create_inverted_indexes('TEST')
