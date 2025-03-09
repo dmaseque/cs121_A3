@@ -291,7 +291,7 @@ def create_inverted_indexes(dev):
                 anchor_text = anchor.text_content().strip().lower()
 
             # turn anchor words into tokens and give a large weight because it contains target url
-            tokens += tokenize(anchor_text.split(), weight=10)
+            tokens += tokenize(anchor_text, weight=10)
 
             # add weights to "important text" (actual weights can be adjusted later)
             # text in titles - additional weight of 2
