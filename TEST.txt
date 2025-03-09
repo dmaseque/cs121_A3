@@ -10,6 +10,8 @@ research opporunities
 ics 161
 ics honors program
 
+
+
 Queries that didn't perform well:
 
 For speed, we limited the cosine similarity calculations by capping at top-200 postings.
@@ -31,5 +33,5 @@ project - extremely slow and bad ranking
 artificial intelligence - bad ranking
     Fixed issues with vector calculation
 
-wics history - inaccurate results (contains urls without query terms)
+wics history - bad ranking and inaccurate results (contains urls without query terms)
     Fixed issue with set intersection
