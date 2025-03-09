@@ -4,8 +4,10 @@ import re
 from bs4 import BeautifulSoup
 from nltk.stem import PorterStemmer
 from simhash import Simhash
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlsplit, urlunsplit
 import shutil
+from lxml import html
+import requests
 
 inverted_index = {} # global variable of inverted index - key: token -> list of postings
 index_counter = 1 # current number of index being built
@@ -41,8 +43,14 @@ def delete_dir(path):
         print(f"Error attempting to delete_dir: {e}")
 
 # returns True if url_name is valid
-def is_valid(url):
+def is_valid(url, content):
     try:
+
+        response = requests.get(url)
+
+        if response.status_code != 200:
+            return False
+
         parsed = urlparse(url)
         file_extensions = ( r".*\.(css|js|bmp|gif|jpe?g|ico|img|png|tiff?|mid|mp2|mp3|mp4|"
                             r"wav|avi|mov|mpeg|ram|m4v|mkv|ogg|ogv|pdf|ps|eps|tex|ppt|pptx|doc|"
@@ -61,6 +69,16 @@ def is_valid(url):
         if any(pattern in parsed.path.lower() or pattern in parsed.query.lower() for pattern in low_value_patterns):
             return False
         
+        tree = html.fromstring(content)
+        if tree is None:
+            return False
+        
+        if not content.strip():
+            return False
+        
+        if not any(tag in content.lower() for tag in ["<html", "<body", "<head"]):
+            return False
+
         # Return true when all filters are passed
         return True
     
@@ -197,10 +215,13 @@ def create_inverted_indexes(dev):
             # posting - document_name is the url in the json file
             document_name = content['url']
 
+            parts = urlsplit(document_name)
+            document_name = urlunsplit((parts.scheme, parts.netloc, parts.path, parts.query, ''))
+
             # posting - term frequency score
             
             # skip page if path extension contains invalid url
-            if not is_valid(document_name):
+            if not is_valid(document_name, content):
                 #error_log(f"{document_name} contains an invalid extension", "bad_ext_log")
                 detected_bad_extensions += 1
                 continue
