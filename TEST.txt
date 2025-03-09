@@ -2,16 +2,34 @@ Queries that performed well:
 
 hackathon
 fall 2023 - No documents found (ZeroDivisionError handled)
-
+iftekhar ahmed
+acm
+gene dataset
+business information management
+research opporunities
+ics 161
+ics honors program
 
 Queries that didn't perform well:
 
+For speed, we limited the cosine similarity calculations by capping at top-200 postings.
+
+events - slow and bad ranking
+    Normalized page lengths to avoid long pages dominating and filtered out more file extensions.
 workshop - slow and some bad ranking
+    Normalized page lengths to avoid long pages dominating
 alumni - slow
 master of software engineering - slow
+ics events - slow
+
 ICS undergraduate - bad ranking
+    Normalized page lengths to avoid long pages dominating
 Cristina Lopes - bad ranking
-project - extremely slow and bad ranking. 
+    Implemented thesaurus
+project - extremely slow and bad ranking
+    Fixed issues with vector calculation, filtered out low-quality urls (similar to A2)
+artificial intelligence - bad ranking
+    Fixed issues with vector calculation
 
-
-Errors:
+wics history - inaccurate results (contains urls without query terms)
+    Fixed issue with set intersection
