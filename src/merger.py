@@ -84,14 +84,14 @@ def merge_partial_indexes():
                     bookkeeper[current_term] = file.tell()
 
                     # calculate IDF for term
-                    df_t = doc_freqs.get(current_term, 0)
-                    idf = math.log((total_docs + 1) / (df_t + 1)) + 1  # Smoothed IDF
+                    df_t = doc_freqs.get(current_term, 0) # number of docs containing current term
+                    idf = math.log((total_docs + 1) / (df_t + 1))  # Smoothed IDF
 
                     # updating postings with TF-IDF scores
                     for posting in current_postings:
                         tf = posting["tf"]
-                        tf_idf = tf * idf
-                        posting["tf-idf score"] = round(tf_idf, 2)
+                        tf_idf = (1 + math.log(tf)) * idf
+                        posting["tf-idf score"] = round(tf_idf, 3)
                         # print(f"Term: {current_term}, tf: {tf}, idf: {idf}, tf-idf: {tf_idf}")
                         # print(f"Term: {current_term}, total_docs: {total_docs}, df_t: {df_t}")
 
@@ -114,7 +114,7 @@ def merge_partial_indexes():
 
             # calculate IDF for the last term
             df_t = doc_freqs.get(current_term, 0)
-            idf = math.log(total_docs / (df_t))
+            idf = math.log((total_docs + 1) / (df_t + 1))  # Smoothed IDF
 
             # updating postings with TF-IDF scores
             for posting in current_postings:
