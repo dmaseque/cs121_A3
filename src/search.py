@@ -5,6 +5,8 @@ from sklearn.metrics.pairwise import cosine_similarity
 import math
 import numpy as np
 
+# postings_cache = {}
+
 # Load doc to id mapping
 with open("doc_id_mapping.json", 'r', encoding='utf-8') as file:
     doc_id_map = json.load(file)
@@ -46,9 +48,16 @@ def search(query):
     # tokenize the query string
     # output is list of (stemmed token, weight)
     query_tokens_weight = tokenize(query, weight=1)
+
     # get only the stemmed tokens => token[0] (first value of token)
     query_stemmed_tokens = [token[0] for token in query_tokens_weight]
     query_freqs = computeWordFrequencies([(token, 1) for token in query_stemmed_tokens])
+
+    # query_tokens = query.lower().split()
+
+    # query_tokens.extend(query_stemmed_tokens)
+
+    # query_tokens = list(set(query_tokens))
 
     # Initialize result as None, no documents
     result = None
@@ -75,6 +84,7 @@ def search(query):
     tf_idf_lookup = {}  # {document_id: np.array(tf-idf scores)}
 
     for token in query_stemmed_tokens:
+        # print(token)
         postings = get_cached_postings(token)  # Retrieve postings once per token
 
         # Extract document IDs from postings
@@ -110,7 +120,7 @@ def search(query):
     doc_similarities.sort(key=lambda x: x[1], reverse=True)
 
     # return list of docIDs sorted by cosine similarity
-    return [doc_id_map[doc_id] for doc_id, _ in doc_similarities][:5]
+    return [doc_id_map[doc_id] for doc_id, _ in doc_similarities][:10]
 
 def get_query():
     while True:
