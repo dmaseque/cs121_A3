@@ -1,32 +1,47 @@
 Queries that performed well:
 
+iftekhar ahmed
+ics honors program
+business information management
+research opporunities
 hackathon
-fall 2023 - No documents found (ZeroDivisionError handled)
-Iftekhar Ahmed - handled upper case search queries, fragments
-machine learning - time was 1555 ms, only retrieve top 200 postings and now time is 150 ms. some urls have fragments and are 404 status codes
+acm
+gene dataset
+ics 161
+ics honors program
+computer vision
+computer science faculty
+internship program
+faculty in the department of informatics
 
 
-Queries that didn't perform well:
 
+
+Queries that didn't perform well at first:
+
+For speed, we limited the cosine similarity calculations by capping at top-k postings.
+
+events - slow and bad ranking
+    Normalized page lengths to avoid long pages dominating and filtered out more file extensions.
 workshop - slow and some bad ranking
+    Normalized page lengths to avoid long pages dominating
 alumni - slow
 master of software engineering - slow
+wics events - slow
+
 ICS undergraduate - bad ranking
+    Normalized page lengths to avoid long pages dominating
 Cristina Lopes - bad ranking
-project - extremely slow and bad ranking. 
-machine learning - slow
+    Implemented thesaurus
+project - extremely slow and bad ranking
+    Fixed issues with vector calculation, filtered out low-quality urls (similar to A2)
+artificial intelligence - bad ranking
+    Fixed issues with vector calculation
+engineering projects - only one document
+    Increase k (number of postings) to 1000
 
+wics history - bad ranking and inaccurate results (contains urls without query terms)
+    Fixed issue with set intersection
 
-Errors and Fixes:
-
-urls with 404 status error still retrieved - mondego, hombao
-
-
-Search queries
-- computer science faculty
-- data science course
-- engineering project
-- technology research
-- internship program
-- dksdlfefjawofe
-- ics 33 programming assignments
+fall 2023
+    No documents found (ZeroDivisionError handled)
