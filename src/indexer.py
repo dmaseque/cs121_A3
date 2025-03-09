@@ -10,7 +10,7 @@ import shutil
 inverted_index = {} # global variable of inverted index - key: token -> list of postings
 index_counter = 1 # current number of index being built
 
-doc_id_map = {}  # document_name (URL) -> mappings of document_id
+doc_id_map = {}  # document_name (URL) -> (document_id, link to json file)
 doc_id_counter = 0  # counter to assign IDs
 
 simhash_set = set() # unique Simhashes for detecting duplicates/near duplicates
@@ -80,6 +80,10 @@ def is_unique_page(tokens):
 
 # modified tokenize from Part A
 def tokenize(text, weight=1):
+    synonym_map = {
+        "crista": "cristina",
+        "cs": "compsci"
+    }
 
     # use regular expression to tokenize alphanumeric words in text
     tokens = re.findall(r'[a-zA-Z0-9]+', text.lower())
@@ -89,6 +93,8 @@ def tokenize(text, weight=1):
     tokens_stemmed = []     # unigrams
     unique_tokens = set()
     for token in tokens:
+        # Normalize using synonym map
+        token = synonym_map.get(token, token)
         # only add tokens that are more than 2 characters
         # do not include numbers > 5 digits
         if len(token) > 2 and not (token.isdigit() and len(token) > 5):
@@ -132,7 +138,7 @@ def computeWordFrequencies(tokens):
     # normalize and scale to the range 0-100
     for token in word_frequencies:
         # Normalize by dividing by max frequency, then scale to 0-100
-        word_frequencies[token] = round((word_frequencies[token] / max_freq) * 100, 2)
+        word_frequencies[token] = round((word_frequencies[token] / max_freq) * 100, 3)
     return word_frequencies
 
 # add posting to inverted_index
@@ -172,7 +178,7 @@ def create_inverted_indexes(dev):
     detected_bad_extensions = 0
 
     # delete partial_indexes folder before running to reset
-    #delete_dir("partial_indexes")
+    delete_dir("partial_indexes")
 
     for domain in corpus:
         print(f'Indexing domain:{domain}')
@@ -241,7 +247,7 @@ def create_inverted_indexes(dev):
             # text in bold/strong - additional weight of 1
             for tag in ['b', 'strong']: 
                 for element in soup.find_all(tag):
-                    tokens += tokenize(element.get_text(), weight=2)
+                    tokens += tokenize(element.get_text(), weight=2) # testing adjustment to 2
 
             # regular text - default weight of 1
             tokens += tokenize(soup.get_text(), weight=1)
@@ -260,7 +266,7 @@ def create_inverted_indexes(dev):
             term_freq = computeWordFrequencies(tokens)
 
             # create posting for webpage and add to inverted_index
-            document_id = get_document_id(document_name) # do this here to avoid adding dupes to doc_id_map
+            document_id = get_document_id(document_name, webpage) # do this here to avoid adding dupes to doc_id_map
             posting(document_id, term_freq)
 
             # DUMP EVERY MAX_DOCS DOCS
@@ -274,7 +280,7 @@ def create_inverted_indexes(dev):
 
     # dump mapping
     with open("doc_id_mapping.json", "w", encoding="utf-8") as file:
-        json.dump(doc_id_map, file, indent=4)
+        json.dump(doc_id_map, file, indent=1)
 
 
 # save index to json file
@@ -289,7 +295,7 @@ def dump_inverted_index():
     output_file = f"partial_indexes/partial_index_{index_counter}.json"
     with open(output_file, "w", encoding="utf-8") as file:
         # sort alphabetically
-        json.dump(dict(sorted(inverted_index.items())), file, indent=4)
+        json.dump(dict(sorted(inverted_index.items())), file, indent=1)
 
     # clear memory and increment counter
     inverted_index = {}
@@ -297,12 +303,12 @@ def dump_inverted_index():
 
 
 
-def get_document_id(document_name):
+def get_document_id(document_name, webpage):
     global doc_id_counter, doc_id_map
     if document_name not in doc_id_map:
-        doc_id_map[document_name] = doc_id_counter
+        doc_id_map[document_name] = (doc_id_counter, webpage)
         doc_id_counter += 1
-    return doc_id_map[document_name]
+    return doc_id_map[document_name][0]
 
 def error_log(msg, path):
     with open(path, 'a') as file:
