@@ -271,7 +271,7 @@ def create_inverted_indexes(dev):
 
                     # Tokenize all anchor texts and give them a weight
                     for text in anchor_texts:
-                        tokens += tokenize(text, weight=10)
+                        tokens += tokenize(text, weight=5)
 
                 except etree.ParserError as e:
                     print(f"Parsing error: {e}, skipping document")
