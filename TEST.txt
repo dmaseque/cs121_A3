@@ -45,3 +45,7 @@ wics history - bad ranking and inaccurate results (contains urls without query t
 
 fall 2023
     No documents found (ZeroDivisionError handled)
+
+General query improvements:
+Adjusted weights of our tokens to improve ranking
+    Ex: anchor = 10->5, title = 3->5, headings = 2->3, bold/strong = 2
