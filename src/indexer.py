@@ -6,7 +6,7 @@ from nltk.stem import PorterStemmer
 from simhash import Simhash
 from urllib.parse import urlparse, urlsplit, urlunsplit
 import shutil
-from lxml import html
+from lxml import html, etree
 import time
 import requests
 from requests.exceptions import ConnectionError
@@ -55,18 +55,8 @@ def delete_dir(path):
         print(f"Error attempting to delete_dir: {e}")
 
 # returns True if url_name is valid
-def is_valid(url, content):
+def is_valid(url):
     try:
-
-        try:
-            response = requests.get(url)
-        except ConnectionError as e:
-            # print(f"Could not fetch URL {url}: {e}")
-            return False
-
-        if response.status_code != 200:
-            return False
-
         parsed = urlparse(url)
         file_extensions = ( r".*\.(css|js|bmp|gif|jpe?g|ico|img|png|tiff?|mid|mp2|mp3|mp4|"
                             r"wav|avi|mov|mpeg|ram|m4v|mkv|ogg|ogv|pdf|ps|eps|tex|ppt|pptx|doc|"
@@ -232,10 +222,12 @@ def create_inverted_indexes(dev):
             parts = urlsplit(document_name)
             document_name = urlunsplit((parts.scheme, parts.netloc, parts.path, parts.query, ''))
 
+            # print(document_name)
+
             # posting - term frequency score
             
             # skip page if path extension contains invalid url
-            if not is_valid(document_name, content['content']):
+            if not is_valid(document_name):
                 #error_log(f"{document_name} contains an invalid extension", "bad_ext_log")
                 detected_bad_extensions += 1
                 continue
@@ -260,19 +252,30 @@ def create_inverted_indexes(dev):
             # transform content to bytes
             content_bytes = content["content"]
 
-            if content_bytes.strip():
-                if isinstance(content_bytes, str):
-                    content_bytes = content_bytes.encode("utf-8")
+            if isinstance(content_bytes, bytes):
+                content_str = content_bytes.decode("utf-8", errors="ignore")
+            elif isinstance(content_bytes, str):
+                content_str = content_bytes.encode("utf-8")
 
-                tree = html.fromstring(content_bytes)
+            # Skip empty or non-HTML content
+            if content_str.strip():
+                # print ("Indexing on anchor words")
+                try:
+                    tree = html.fromstring(content_str)
 
-                # retrieve all the anchor words in a list anchor_text
-                for anchor in tree.xpath("//a[@href]"):
-                    anchor_text = anchor.text_content().strip().lower()
+                    # Retrieve all anchor words
+                    anchor_texts = []
+                    for anchor in tree.xpath("//a[@href]"):
+                        if anchor.text_content():
+                            anchor_texts.append(anchor.text_content().strip().lower())
 
-                # turn anchor words into tokens and give a large weight because it contains target url
-                tokens += tokenize(anchor_text, weight=10)
+                    # Tokenize all anchor texts and give them a weight
+                    for text in anchor_texts:
+                        tokens += tokenize(text, weight=10)
 
+                except etree.ParserError as e:
+                    print(f"Parsing error: {e}, skipping document")
+            
             # add weights to "important text" (actual weights can be adjusted later)
             # text in titles - additional weight of 2
             if soup.title: # soup.title directly accesses HTML document's <title> tag
@@ -357,4 +360,4 @@ def error_log(msg, path):
 if __name__ == '__main__':
 
     # # the DEV folder - extract developer.zip inside the src folder
-    create_inverted_indexes('TEST')
+    create_inverted_indexes('DEV')
