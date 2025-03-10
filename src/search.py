@@ -10,7 +10,7 @@ import numpy as np
 # Load doc to id mapping
 with open("doc_id_mapping.json", 'r', encoding='utf-8') as file:
     doc_id_map = json.load(file)
-    doc_id_map = {v: k for k, v in doc_id_map.items()}
+    doc_id_map = {v[0]: (k, v[1]) for k, v in doc_id_map.items()}
 
 # Load bookkeeping file to map terms to byte positions in the index file
 with open("bookkeeping.json", 'r', encoding='utf-8') as book_file:
@@ -65,7 +65,7 @@ def search(query):
     for token in query_stemmed_tokens:
         if "_" in token:
             continue
-        postings = get_cached_postings(token)[:200]  # Retrieve postings once per token
+        postings = get_cached_postings(token)  # Retrieve postings once per token
 
         # Extract document IDs from postings
         postings_ids = {doc["document_id"] for doc in postings}
@@ -98,7 +98,7 @@ def search(query):
         tf_idf = (1 + math.log(tf)) * idf
         query_vector.append(round(tf_idf, 3))
 
-        postings = postings[:200]
+        postings = postings[:1000]
 
         for posting in postings:
             doc_id = posting["document_id"]

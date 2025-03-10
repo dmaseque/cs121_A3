@@ -6,15 +6,12 @@ from nltk.stem import PorterStemmer
 from simhash import Simhash
 from urllib.parse import urlparse, urlsplit, urlunsplit
 import shutil
-from lxml import html, etree
-import time
-import requests
-from requests.exceptions import ConnectionError
+from lxml import html
 
 inverted_index = {} # global variable of inverted index - key: token -> list of postings
 index_counter = 1 # current number of index being built
 
-doc_id_map = {}  # document_name (URL) -> mappings of document_id
+doc_id_map = {}  # document_name (URL) -> (document_id, link to json file)
 doc_id_counter = 0  # counter to assign IDs
 
 simhash_set = set() # unique Simhashes for detecting duplicates/near duplicates
@@ -37,16 +34,6 @@ MAX_FILE_SIZE = 1000 * 1024  # 1000KB in bytes
 # # download nltk data for tokenization
 # nltk.download('punkt')
 
-def get_url_with_retries(url, retries=1, delay=5):
-    for i in range(retries):
-        try:
-            response = requests.get(url)
-            return response
-        except ConnectionError as e:
-            print(f"Connection failed (attempt {i + 1}/{retries}): {e}")
-            time.sleep(delay)
-    raise ConnectionError(f"Failed to connect after {retries} attempts.")
-
 # deletes the directory at the given path as well as all its contents
 def delete_dir(path):
     try:
@@ -57,12 +44,13 @@ def delete_dir(path):
 # returns True if url_name is valid
 def is_valid(url):
     try:
+
         parsed = urlparse(url)
         file_extensions = ( r".*\.(css|js|bmp|gif|jpe?g|ico|img|png|tiff?|mid|mp2|mp3|mp4|"
                             r"wav|avi|mov|mpeg|ram|m4v|mkv|ogg|ogv|pdf|ps|eps|tex|ppt|pptx|doc|"
                             r"docx|xls|xlsx|names|data|dat|exe|bz2|tar|msi|bin|7z|psd|dmg|iso|"
                             r"epub|dll|cnf|tgz|sha1|thmx|mso|arff|rtf|jar|csv|rm|smil|wmv|swf|"
-                            r"wma|zip|rar|gz|war|apk|mpg|bam|emx|bib|shar|lif|ppsx|wvx|odc|pps|xml|fig|dtd|sql|java|cp|sh|svg|conf|ipynb|json|scm|ff|py|log|model|cc|sas|tsv|map)$" )
+                            r"wma|zip|rar|gz|war|apk|mpg|bam|emx|bib|shar|lif|ppsx|wvx|odc|pps|xml|fig|dtd|sql|java|cp|sh|svg|conf|ipynb|json|scm|ff|py|log|model|cc|sas|tsv|map|DS_Store)$" )
         # Exclude file extensions in params and query
         if re.match(file_extensions, parsed.path.lower()) or re.match(file_extensions, parsed.query.lower()):
             return False
@@ -94,6 +82,10 @@ def is_unique_page(tokens):
 
 # modified tokenize from Part A
 def tokenize(text, weight=1):
+    synonym_map = {
+        "crista": "cristina",
+        "cs": "compsci"
+    }
 
     # use regular expression to tokenize alphanumeric words in text
     tokens = re.findall(r'[a-zA-Z0-9]+', text.lower())
@@ -103,6 +95,8 @@ def tokenize(text, weight=1):
     tokens_stemmed = []     # unigrams
     unique_tokens = set()
     for token in tokens:
+        # Normalize using synonym map
+        token = synonym_map.get(token, token)
         # only add tokens that are more than 2 characters
         # do not include numbers > 5 digits
         if len(token) > 2 and not (token.isdigit() and len(token) > 5):
@@ -146,7 +140,7 @@ def computeWordFrequencies(tokens):
     # normalize and scale to the range 0-100
     for token in word_frequencies:
         # Normalize by dividing by max frequency, then scale to 0-100
-        word_frequencies[token] = round((word_frequencies[token] / max_freq) * 100, 2)
+        word_frequencies[token] = round((word_frequencies[token] / max_freq) * 100, 3)
     return word_frequencies
 
 # add posting to inverted_index
@@ -186,7 +180,7 @@ def create_inverted_indexes(dev):
     detected_bad_extensions = 0
 
     # delete partial_indexes folder before running to reset
-    #delete_dir("partial_indexes")
+    # delete_dir("partial_indexes")
 
     for domain in corpus:
         print(f'Indexing domain:{domain}')
@@ -222,8 +216,6 @@ def create_inverted_indexes(dev):
             parts = urlsplit(document_name)
             document_name = urlunsplit((parts.scheme, parts.netloc, parts.path, parts.query, ''))
 
-            # print(document_name)
-
             # posting - term frequency score
             
             # skip page if path extension contains invalid url
@@ -252,30 +244,23 @@ def create_inverted_indexes(dev):
             # transform content to bytes
             content_bytes = content["content"]
 
-            if isinstance(content_bytes, bytes):
-                content_str = content_bytes.decode("utf-8", errors="ignore")
-            elif isinstance(content_bytes, str):
-                content_str = content_bytes.encode("utf-8")
+            if content_bytes.strip():
+                if isinstance(content_bytes, str):
+                    content_bytes = content_bytes.encode("utf-8")
 
-            # Skip empty or non-HTML content
-            if content_str.strip():
-                # print ("Indexing on anchor words")
                 try:
-                    tree = html.fromstring(content_str)
+                    tree = html.fromstring(content_bytes)
+                except Exception as e:
+                    print(f"Error parsing HTML for {webpage} aka {document_name}: {e}")
+                    continue
 
-                    # Retrieve all anchor words
-                    anchor_texts = []
-                    for anchor in tree.xpath("//a[@href]"):
-                        if anchor.text_content():
-                            anchor_texts.append(anchor.text_content().strip().lower())
+                # retrieve all the anchor words in a list anchor_text
+                for anchor in tree.xpath("//a[@href]"):
+                    anchor_text = anchor.text_content().strip().lower()
 
-                    # Tokenize all anchor texts and give them a weight
-                    for text in anchor_texts:
-                        tokens += tokenize(text, weight=2)
+                    # turn anchor words into tokens and give a large weight because it contains target url
+                    tokens += tokenize(anchor_text, weight=2)
 
-                except etree.ParserError as e:
-                    print(f"Parsing error: {e}, skipping document")
-            
             # add weights to "important text" (actual weights can be adjusted later)
             # text in titles - additional weight of 2
             if soup.title: # soup.title directly accesses HTML document's <title> tag
@@ -289,7 +274,7 @@ def create_inverted_indexes(dev):
             # text in bold/strong - additional weight of 1
             for tag in ['b', 'strong']: 
                 for element in soup.find_all(tag):
-                    tokens += tokenize(element.get_text(), weight=2)
+                    tokens += tokenize(element.get_text(), weight=2) # testing adjustment to 2
 
             # regular text - default weight of 1
             tokens += tokenize(soup.get_text(), weight=1)
@@ -308,7 +293,7 @@ def create_inverted_indexes(dev):
             term_freq = computeWordFrequencies(tokens)
 
             # create posting for webpage and add to inverted_index
-            document_id = get_document_id(document_name) # do this here to avoid adding dupes to doc_id_map
+            document_id = get_document_id(document_name, webpage) # do this here to avoid adding dupes to doc_id_map
             posting(document_id, term_freq)
 
             # DUMP EVERY MAX_DOCS DOCS
@@ -322,7 +307,7 @@ def create_inverted_indexes(dev):
 
     # dump mapping
     with open("doc_id_mapping.json", "w", encoding="utf-8") as file:
-        json.dump(doc_id_map, file, indent=4)
+        json.dump(doc_id_map, file, indent=1)
 
 
 # save index to json file
@@ -337,7 +322,7 @@ def dump_inverted_index():
     output_file = f"partial_indexes/partial_index_{index_counter}.json"
     with open(output_file, "w", encoding="utf-8") as file:
         # sort alphabetically
-        json.dump(dict(sorted(inverted_index.items())), file, indent=4)
+        json.dump(dict(sorted(inverted_index.items())), file, indent=1)
 
     # clear memory and increment counter
     inverted_index = {}
@@ -345,12 +330,12 @@ def dump_inverted_index():
 
 
 
-def get_document_id(document_name):
+def get_document_id(document_name, webpage):
     global doc_id_counter, doc_id_map
     if document_name not in doc_id_map:
-        doc_id_map[document_name] = doc_id_counter
+        doc_id_map[document_name] = (doc_id_counter, webpage)
         doc_id_counter += 1
-    return doc_id_map[document_name]
+    return doc_id_map[document_name][0]
 
 def error_log(msg, path):
     with open(path, 'a') as file:
