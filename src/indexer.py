@@ -4,8 +4,12 @@ import re
 from bs4 import BeautifulSoup
 from nltk.stem import PorterStemmer
 from simhash import Simhash
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlsplit, urlunsplit
 import shutil
+from lxml import html
+import time
+import requests
+from requests.exceptions import ConnectionError
 
 inverted_index = {} # global variable of inverted index - key: token -> list of postings
 index_counter = 1 # current number of index being built
@@ -33,6 +37,16 @@ MAX_FILE_SIZE = 1000 * 1024  # 1000KB in bytes
 # # download nltk data for tokenization
 # nltk.download('punkt')
 
+def get_url_with_retries(url, retries=1, delay=5):
+    for i in range(retries):
+        try:
+            response = requests.get(url)
+            return response
+        except ConnectionError as e:
+            print(f"Connection failed (attempt {i + 1}/{retries}): {e}")
+            time.sleep(delay)
+    raise ConnectionError(f"Failed to connect after {retries} attempts.")
+
 # deletes the directory at the given path as well as all its contents
 def delete_dir(path):
     try:
@@ -41,8 +55,18 @@ def delete_dir(path):
         print(f"Error attempting to delete_dir: {e}")
 
 # returns True if url_name is valid
-def is_valid(url):
+def is_valid(url, content):
     try:
+
+        try:
+            response = requests.get(url)
+        except ConnectionError as e:
+            # print(f"Could not fetch URL {url}: {e}")
+            return False
+
+        if response.status_code != 200:
+            return False
+
         parsed = urlparse(url)
         file_extensions = ( r".*\.(css|js|bmp|gif|jpe?g|ico|img|png|tiff?|mid|mp2|mp3|mp4|"
                             r"wav|avi|mov|mpeg|ram|m4v|mkv|ogg|ogv|pdf|ps|eps|tex|ppt|pptx|doc|"
@@ -60,7 +84,7 @@ def is_valid(url):
         low_value_patterns = ["raw-attachment", "public_data"]
         if any(pattern in parsed.path.lower() or pattern in parsed.query.lower() for pattern in low_value_patterns):
             return False
-        
+
         # Return true when all filters are passed
         return True
     
@@ -211,10 +235,13 @@ def create_inverted_indexes(dev):
             # posting - document_name is the url in the json file
             document_name = content['url']
 
+            parts = urlsplit(document_name)
+            document_name = urlunsplit((parts.scheme, parts.netloc, parts.path, parts.query, ''))
+
             # posting - term frequency score
             
             # skip page if path extension contains invalid url
-            if not is_valid(document_name):
+            if not is_valid(document_name, content['content']):
                 #error_log(f"{document_name} contains an invalid extension", "bad_ext_log")
                 detected_bad_extensions += 1
                 continue
@@ -233,6 +260,24 @@ def create_inverted_indexes(dev):
                 continue
 
             tokens = []
+
+            # index on anchor words
+
+            # transform content to bytes
+            content_bytes = content["content"]
+
+            if content_bytes.strip():
+                if isinstance(content_bytes, str):
+                    content_bytes = content_bytes.encode("utf-8")
+
+                tree = html.fromstring(content_bytes)
+
+                # retrieve all the anchor words in a list anchor_text
+                for anchor in tree.xpath("//a[@href]"):
+                    anchor_text = anchor.text_content().strip().lower()
+
+                # turn anchor words into tokens and give a large weight because it contains target url
+                tokens += tokenize(anchor_text, weight=10)
 
             # add weights to "important text" (actual weights can be adjusted later)
             # text in titles - additional weight of 2
@@ -318,4 +363,4 @@ def error_log(msg, path):
 if __name__ == '__main__':
 
     # # the DEV folder - extract developer.zip inside the src folder
-    create_inverted_indexes('src/DEV')
+    create_inverted_indexes('TEST')
