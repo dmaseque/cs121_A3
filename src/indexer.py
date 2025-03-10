@@ -345,4 +345,4 @@ def error_log(msg, path):
 if __name__ == '__main__':
 
     # # the DEV folder - extract developer.zip inside the src folder
-    create_inverted_indexes('TEST')
+    create_inverted_indexes('DEV')
