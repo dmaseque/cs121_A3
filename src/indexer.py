@@ -84,6 +84,27 @@ def is_valid(url, content):
         low_value_patterns = ["raw-attachment", "public_data"]
         if any(pattern in parsed.path.lower() or pattern in parsed.query.lower() for pattern in low_value_patterns):
             return False
+        
+        # if there are no contents, return false
+        if not content.strip():
+            return False
+        
+        # if no html tags, return false
+        if not any(tag in content.lower() for tag in ["<html", "<body", "<head"]):
+            return False
+        
+        # transform content to bytes
+        if isinstance(content, str):
+            content = content.encode("utf-8")
+
+        # look for html content and return false if not found
+        try:
+            tree = html.fromstring(content)
+        except Exception:
+            return False
+        
+        if not tree.xpath("//body") and not tree.xpath("//html"):
+            return False
 
         # Return true when all filters are passed
         return True
@@ -94,7 +115,8 @@ def is_valid(url, content):
 
 # returns True if tokens of said page belong to a unique Simhash
 def is_unique_page(tokens):
-    current_hash = Simhash(tokens).value
+    stemmed_tokens = [token[0] for token in tokens]
+    current_hash = Simhash(stemmed_tokens).value
     for old_hash in simhash_set: # Validates current hash against every hash already encountered
         if bin(current_hash ^ old_hash).count('1') <= HAMMING_DISTANCE:  # Lower hamming_distance = docs must be closer to identical
             return False
@@ -110,13 +132,13 @@ def tokenize(text, weight=1):
 
     # use Porter stemming for better textual matches
     stemmer = PorterStemmer()
-    tokens_stemmed = []     # unigrams
+    tokens_stemmed = []     # unigrams with positions
     unique_tokens = set()
-    for token in tokens:
+    for idx, token in enumerate(tokens):
         # only add tokens that are more than 2 characters
         # do not include numbers > 5 digits
         if len(token) > 2 and not (token.isdigit() and len(token) > 5):
-            tokens_stemmed.append((stemmer.stem(token), weight))
+            tokens_stemmed.append((stemmer.stem(token), weight, idx))
             unique_tokens.add(token)
     # if there is too much replication, ignore
     if len(tokens) == 0 or len(unique_tokens)/len(tokens) < 0.05:
@@ -129,12 +151,14 @@ def tokenize(text, weight=1):
     # add 2-grams
     # grabs stemmed word from current and next token, average individual words' weights for bigram's weight
     bigrams = [(f"{tokens_stemmed[i][0]}_{tokens_stemmed[i+1][0]}", 
-                ((tokens_stemmed[i][1] + tokens_stemmed[i+1][1]) / 2) * bigram_weight)
+                ((tokens_stemmed[i][1] + tokens_stemmed[i+1][1]) / 2) * bigram_weight,
+                (tokens_stemmed[i][2], tokens_stemmed[i+1][2])) # positions for bigrams
                 for i in range(len(tokens_stemmed) - 1)]
 
     # add 3-grams
     trigrams = [(f"{tokens_stemmed[i][0]}_{tokens_stemmed[i+1][0]}_{tokens_stemmed[i+2][0]}", 
-                ((tokens_stemmed[i][1] + tokens_stemmed[i+1][1] + tokens_stemmed[i+2][1]) / 2) * trigram_weight)
+                ((tokens_stemmed[i][1] + tokens_stemmed[i+1][1] + tokens_stemmed[i+2][1]) / 2) * trigram_weight,
+                (tokens_stemmed[i][2], tokens_stemmed[i+1][2], tokens_stemmed[i+2][2])) # positions for trigrams
                 for i in range(len(tokens_stemmed) - 2)]
     
     return tokens_stemmed + bigrams + trigrams
@@ -143,12 +167,16 @@ def tokenize(text, weight=1):
 # Important text: adds default weight 1 and any extra weight for appearing in title (+2), headings(+1), or as bold/strong (+1)
 def computeWordFrequencies(tokens):
     word_frequencies = {}
+    positions = {}
 
     #iterate through every token/weight in tokens list
-    for token, weight in tokens:
+    for token, weight, pos in tokens:
         # word_frequencies.get(token, 0) checks if token exists, using 0 as default frequency if it doesn't exist
         # increment frequency if token exists, otherwise set it to its weight
         word_frequencies[token] = word_frequencies.get(token, 0) + weight
+        if token not in positions:
+            positions[token] = []
+        positions[token].append(pos)
 
     # Find the maximum frequency in the word_frequencies
     max_freq = max(word_frequencies.values(), default=1)
@@ -157,11 +185,11 @@ def computeWordFrequencies(tokens):
     for token in word_frequencies:
         # Normalize by dividing by max frequency, then scale to 0-100
         word_frequencies[token] = round((word_frequencies[token] / max_freq) * 100, 2)
-    return word_frequencies
+    return word_frequencies, positions
 
 # add posting to inverted_index
 # posting contains document name/id token was found in and its tf-idf score
-def posting(document_id, term_freq):
+def posting(document_id, term_freq, positions):
     global inverted_index
     # iterate through each token
     for token, frequency in term_freq.items():
@@ -174,7 +202,8 @@ def posting(document_id, term_freq):
         # posting : document name/id token was found in and its tf-idf score
         posting = {
             "document_id": document_id,
-            "tf": frequency # only store TF during initial indexing phase
+            "tf": frequency, # only store TF during initial indexing phase
+            "positions": positions.get(token, []) # store positions
         }
 
         # print(posting)
@@ -260,18 +289,17 @@ def create_inverted_indexes(dev):
             # transform content to bytes
             content_bytes = content["content"]
 
-            if content_bytes.strip():
-                if isinstance(content_bytes, str):
-                    content_bytes = content_bytes.encode("utf-8")
+            if isinstance(content_bytes, str):
+                content_bytes = content_bytes.encode("utf-8")
 
-                tree = html.fromstring(content_bytes)
+            tree = html.fromstring(content_bytes)
 
-                # retrieve all the anchor words in a list anchor_text
-                for anchor in tree.xpath("//a[@href]"):
-                    anchor_text = anchor.text_content().strip().lower()
+            # retrieve all the anchor words in a list anchor_text
+            for anchor in tree.xpath("//a[@href]"):
+                anchor_text = anchor.text_content().strip().lower()
 
-                # turn anchor words into tokens and give a large weight because it contains target url
-                tokens += tokenize(anchor_text, weight=10)
+            # turn anchor words into tokens and give a large weight because it contains target url
+            tokens += tokenize(anchor_text, weight=10)
 
             # add weights to "important text" (actual weights can be adjusted later)
             # text in titles - additional weight of 2
@@ -302,11 +330,11 @@ def create_inverted_indexes(dev):
                 print(f"Skipping {webpage} due to no valid tokens")
                 continue
 
-            term_freq = computeWordFrequencies(tokens)
+            term_freq, positions = computeWordFrequencies(tokens)
 
             # create posting for webpage and add to inverted_index
             document_id = get_document_id(document_name) # do this here to avoid adding dupes to doc_id_map
-            posting(document_id, term_freq)
+            posting(document_id, term_freq, positions)
 
             # DUMP EVERY MAX_DOCS DOCS
             doc_count += 1
@@ -357,4 +385,4 @@ def error_log(msg, path):
 if __name__ == '__main__':
 
     # # the DEV folder - extract developer.zip inside the src folder
-    create_inverted_indexes('TEST')
+    create_inverted_indexes('src/TEST')
