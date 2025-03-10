@@ -7,9 +7,6 @@ from simhash import Simhash
 from urllib.parse import urlparse, urlsplit, urlunsplit
 import shutil
 from lxml import html
-import time
-import requests
-from requests.exceptions import ConnectionError
 
 inverted_index = {} # global variable of inverted index - key: token -> list of postings
 index_counter = 1 # current number of index being built
@@ -37,16 +34,6 @@ MAX_FILE_SIZE = 1000 * 1024  # 1000KB in bytes
 # # download nltk data for tokenization
 # nltk.download('punkt')
 
-def get_url_with_retries(url, retries=1, delay=5):
-    for i in range(retries):
-        try:
-            response = requests.get(url)
-            return response
-        except ConnectionError as e:
-            print(f"Connection failed (attempt {i + 1}/{retries}): {e}")
-            time.sleep(delay)
-    raise ConnectionError(f"Failed to connect after {retries} attempts.")
-
 # deletes the directory at the given path as well as all its contents
 def delete_dir(path):
     try:
@@ -55,24 +42,15 @@ def delete_dir(path):
         print(f"Error attempting to delete_dir: {e}")
 
 # returns True if url_name is valid
-def is_valid(url, content):
+def is_valid(url):
     try:
-
-        try:
-            response = requests.get(url)
-        except ConnectionError as e:
-            # print(f"Could not fetch URL {url}: {e}")
-            return False
-
-        if response.status_code != 200:
-            return False
 
         parsed = urlparse(url)
         file_extensions = ( r".*\.(css|js|bmp|gif|jpe?g|ico|img|png|tiff?|mid|mp2|mp3|mp4|"
                             r"wav|avi|mov|mpeg|ram|m4v|mkv|ogg|ogv|pdf|ps|eps|tex|ppt|pptx|doc|"
                             r"docx|xls|xlsx|names|data|dat|exe|bz2|tar|msi|bin|7z|psd|dmg|iso|"
                             r"epub|dll|cnf|tgz|sha1|thmx|mso|arff|rtf|jar|csv|rm|smil|wmv|swf|"
-                            r"wma|zip|rar|gz|war|apk|mpg|bam|emx|bib|shar|lif|ppsx|wvx|odc|pps|xml|fig|dtd|sql|java|cp|sh|svg|conf|ipynb|json|scm|ff|py|log|model|cc|sas|tsv|map)$" )
+                            r"wma|zip|rar|gz|war|apk|mpg|bam|emx|bib|shar|lif|ppsx|wvx|odc|pps|xml|fig|dtd|sql|java|cp|sh|svg|conf|ipynb|json|scm|ff|py|log|model|cc|sas|tsv|map|DS_Store)$" )
         # Exclude file extensions in params and query
         if re.match(file_extensions, parsed.path.lower()) or re.match(file_extensions, parsed.query.lower()):
             return False
@@ -202,7 +180,7 @@ def create_inverted_indexes(dev):
     detected_bad_extensions = 0
 
     # delete partial_indexes folder before running to reset
-    delete_dir("partial_indexes")
+    # delete_dir("partial_indexes")
 
     for domain in corpus:
         print(f'Indexing domain:{domain}')
@@ -241,7 +219,7 @@ def create_inverted_indexes(dev):
             # posting - term frequency score
             
             # skip page if path extension contains invalid url
-            if not is_valid(document_name, content['content']):
+            if not is_valid(document_name):
                 #error_log(f"{document_name} contains an invalid extension", "bad_ext_log")
                 detected_bad_extensions += 1
                 continue
@@ -270,14 +248,18 @@ def create_inverted_indexes(dev):
                 if isinstance(content_bytes, str):
                     content_bytes = content_bytes.encode("utf-8")
 
-                tree = html.fromstring(content_bytes)
+                try:
+                    tree = html.fromstring(content_bytes)
+                except Exception as e:
+                    print(f"Error parsing HTML for {webpage} aka {document_name}: {e}")
+                    continue
 
                 # retrieve all the anchor words in a list anchor_text
                 for anchor in tree.xpath("//a[@href]"):
                     anchor_text = anchor.text_content().strip().lower()
 
-                # turn anchor words into tokens and give a large weight because it contains target url
-                tokens += tokenize(anchor_text, weight=10)
+                    # turn anchor words into tokens and give a large weight because it contains target url
+                    tokens += tokenize(anchor_text, weight=5)
 
             # add weights to "important text" (actual weights can be adjusted later)
             # text in titles - additional weight of 2

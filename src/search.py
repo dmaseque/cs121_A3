@@ -65,7 +65,7 @@ def search(query):
     for token in query_stemmed_tokens:
         if "_" in token:
             continue
-        postings = get_cached_postings(token)[:1000]  # Retrieve postings once per token
+        postings = get_cached_postings(token)  # Retrieve postings once per token
 
         # Extract document IDs from postings
         postings_ids = {doc["document_id"] for doc in postings}
@@ -98,7 +98,7 @@ def search(query):
         tf_idf = (1 + math.log(tf)) * idf
         query_vector.append(round(tf_idf, 3))
 
-        postings = postings[:200]
+        postings = postings[:1000]
 
         for posting in postings:
             doc_id = posting["document_id"]
